@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local credential store lives in $XDG_DATA_HOME / macOS Keychain, never in the
+# repo — this guard only matters if someone points the store at the repo by mistake.
+secrets.json
+
+# Design-extraction cache: created inside target repos under .ai-artifacts/,
+# never committed.
+.ai-artifacts/
