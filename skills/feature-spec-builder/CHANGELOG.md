@@ -4,6 +4,15 @@ All notable changes to this skill are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-06-10
+
+Covers the upstream `forge-skills` feature-spec-builder update from v1.19.1.
+
+### Fixed
+- Update-mode example: the disabled-state open question now has a `[Pending]`
+  marker in the screen spec table and a matching Pending Summary entry, so the
+  Phase 3.5 gate scan can detect it (three-layer pending correspondence).
+
 ## [1.1.0] - 2026-06-10
 
 Covers the upstream `forge-skills` feature-spec-builder updates from v1.18.0
