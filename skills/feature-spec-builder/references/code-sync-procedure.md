@@ -119,6 +119,7 @@ spec：FEATURE-SPEC.md（Last Updated: 2026-04-02）
 1. **逐項套用**使用者勾選的項目，修改對應章節。
 2. **更新 metadata**：
    - 文件頭部 `Last Updated:` 改為當日日期。
+   - 文件頭部 `Mode:` 改為 `Code Sync`（標示最後一次操作模式）。
    - 若所有 pending（含 ❓ 待確認事項與 [Pending] 標記）均已解決 → `Status:` 可提升至 `Ready`；否則維持 `In Progress`。
 3. **附錄 C Change Log 追加一筆**：
 

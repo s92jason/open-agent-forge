@@ -1,5 +1,19 @@
 # Operating Procedure
 
+## Completion Contract（完成契約 — 跨 harness 防斷流）
+
+**本 skill 的「完成」定義：只有 Phase 4 Validate 全數通過後才算完成**（Code Sync mode 則為 CS-4 + Phase 4）。產出 `FEATURE-SPEC.md` 檔案本身 **不等於** 完成 —— 它只是 Phase 3 的草稿產物，後面還有 Phase 3.5 與 Phase 4。
+
+執行期間，**唯一允許停下並把控制權交還使用者的時機只有以下三個**：
+
+1. Phase 1 Intake 的逐一提問（含 Step 9 抓取確認 gate）
+2. Phase 1.5 Step 1.5.3 的批次補憑證 / 補 URL
+3. Phase 3.5 Step 3 的問題清單（對使用者可見）——**當 Q&A Gate 判定需要提問時，這是強制停點，不是可選**；詳見 `post-draft-qa-checklist.md` 的「Q&A Gate」
+
+除上述三點外，**任何 phase 之間都不得停下、不得回報「完成」、不得等待使用者指示**—— 尤其是 Phase 3 產出文件之後，必須立即接續 Phase 3.5。若你發現自己「剛吐完整份 spec、正想收手」，那正是最常見的斷流點：請繼續往下走，不要停。
+
+> 給 Codex / 非 Claude harness 的提醒：產出大型 artifact 後若無此契約，模型傾向 yield 回使用者。請把上面三個停止點當成 hard gate，其餘一律連續執行到 Phase 4。
+
 ## Phase 1: Intake
 
 **核心原則：一次只問一個問題。** 等使用者回答後再問下一個，絕對不能把多個問題合併在同一則訊息輸出。
@@ -135,12 +149,19 @@ Step 5 / 6 / 6.1 都結束、Step 7 / 8 也走完後，**先不要直接呼叫 e
 - 例外：**Update menu A/B** 路徑下，wrapper 加 `--bust-cache` flag（重列 URL = 使用者明示要 refetch）
 - 檔案：每個 link 一份獨立 JSON 在 `<feature>/figma/<hash>.json` 或 `<feature>/axure/<hash>.json`，hash = `sha256("<type>|<url>|<page>")[:8]`
 
+### Step 1.5.0：定位腳本絕對路徑（每次 Phase 1.5 開頭做一次）
+
+skill 的安裝位置因 harness 而異（Claude Code 的 plugins 目錄、Codex 的 skills 目錄、antigravity workspace…），**不能假設 cwd 就是 skill 目錄、也不能假設 `scripts/...` 相對路徑跑得起來**。進 Step 1.5.1 前，先解析出本 skill `scripts/` 的絕對路徑（下文記為 `<scripts-dir>`），後續所有腳本呼叫一律用它。
+
+- 你正在讀的這份 `operating-procedure.md` 位於 `<skill-dir>/references/`，故 `<scripts-dir>` = 與 `references/` 同層的 `scripts/`（即把讀檔路徑的 `references/operating-procedure.md` 換成 `scripts/`）。
+- 開始批次抓取前，先確認 `<scripts-dir>/extract_with_cache.py` 確實存在。
+
 ### Step 1.5.1：Figma 批次抽取
 
 對 Phase 1 蒐集到的**每個** Figma URL 依序執行 wrapper（token 由底層 extractor 自動從 Keychain 讀取）：
 
 ```bash
-python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
+python3 <scripts-dir>/extract_with_cache.py \
   figma "<figma-url>" --page "<page-name>" \
   --feature-dir <repo-root>/.ai-artifacts/feature-spec-builder/<feature-name> \
   [--bust-cache]   # 僅 Update menu B 路徑下加
@@ -149,6 +170,7 @@ python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
 - 成功時 stdout 印 `CACHE_HIT: <path>` 或 `EXTRACTED: <path>`，讀該 path 取得 frame 列表、文字內容與推測狀態
 - **失敗處理（不 inline 詢問）**：
     - 若腳本回報缺 token / token 失效（401/403）→ 把該 URL 記入「Figma token 失效」清單，繼續跑下一個
+    - 若回報 rate limit（429）→ 記入「rate limit」清單，繼續跑下一個
     - 若抽取失敗（URL 無效、權限不足、結構異常等）→ 記入「其他錯誤」清單，繼續跑下一個
 - 失敗訊息一律累積到 Step 1.5.3 統一處理；不要中途呼叫 `keychain_helper.py store` 或向使用者索取
 
@@ -157,7 +179,7 @@ python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
 對 Phase 1 蒐集到的**每個** Axure share link（`<id>.axshare.com`）依序執行：
 
 ```bash
-python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
+python3 <scripts-dir>/extract_with_cache.py \
   axure "<axure-url>" \
   --feature-dir <repo-root>/.ai-artifacts/feature-spec-builder/<feature-name> \
   [--bust-cache]   # 僅 Update menu A 路徑下加
@@ -191,18 +213,26 @@ python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
   - https://www.figma.com/file/...
 請提供新的 Figma token。
 
+【Rate limit (429)】N 個 URL：
+  - <url>
+處理：等待約 60 秒後自動重跑這批一次（不需使用者操作）；重跑仍 429 才列入本報告，
+請使用者決定稍後重試或略過。
+
 【其他錯誤】1 個 URL：
   - https://xyz.axshare.com/... — 結構異常或非 axshare.com 格式
 請決定：略過 / 換 fallback（PDF / 截圖 / 文字） / 我要修正 URL。
 ```
 
+若某 URL 的輸出 JSON 含 `"degraded": true` 或 `page_count` 為 0，視同失敗列入【其他錯誤】組。
+
 收齊使用者補的憑證 / URL 後：
 
-1. 缺 Axure access code → 對每個 URL 逐一執行 `echo "<code>" | python3 keychain_helper.py axure-store --link "<url>"` 存入 Keychain
-2. Figma token 失效 → 執行 `echo "<token>" | python3 keychain_helper.py store` 覆寫 Keychain
-3. **只重跑這些缺項 URL**（已成功的不重抓，避免浪費 cache hit）；同樣依序、同樣累積錯誤，必要時再跑一輪 Step 1.5.3
-4. 直到所有「使用者堅持要抓」的 URL 都成功，或使用者明確說「這幾個就略過」為止
-5. 其他權限問題依 `access-and-credential-handling.md` 處理
+1. rate limit 清單 → 自動重跑一次，僅一次
+2. 缺 Axure access code → 對每個 URL 逐一執行 `echo "<code>" | python3 keychain_helper.py axure-store --link "<url>"` 存入 Keychain
+3. Figma token 失效 → 執行 `echo "<token>" | python3 keychain_helper.py store` 覆寫 Keychain
+4. **只重跑這些缺項 URL**（已成功的不重抓，避免浪費 cache hit）；同樣依序、同樣累積錯誤，必要時再跑一輪 Step 1.5.3
+5. 直到所有「使用者堅持要抓」的 URL 都成功，或使用者明確說「這幾個就略過」為止
+6. 其他權限問題依 `access-and-credential-handling.md` 處理
 
 ## Phase 2: Reconcile
 
@@ -211,7 +241,7 @@ python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
 > - **Update mode（局部模式）**：只對本次菜單觸碰的章節做 Reconcile，未被觸碰的章節保留原文不重寫。`changed_sections` 集合由菜單流程維護，見 `update-mode-menu.md`。
 > - **Code Sync mode**：不執行 Phase 2，由 CS-2/CS-3 取代。
 
-1. 從 Axure（WebFetch 結果或使用者提供的匯出資料）抽流程、入口、分支、例外。
+1. 從 Axure（讀取 `.ai-artifacts/feature-spec-builder/<feature>/axure/*.json`，或使用者提供的匯出資料）抽流程、入口、分支、例外。
 2. 從 Figma（讀取 `.ai-artifacts/feature-spec-builder/<feature>/figma/*.json` 內所有 link 的 frame 列表與文字內容）抽畫面、狀態、元件責任、非 happy path。
 3. 從 API / 使用者說明抽 input/output、資料限制、未定 contract。**若有多份 API 文件，逐份比對並合併至🔌 API 規格與附錄 A.2，欄位定義以最新一份為準，並於衝突時列入待確認。**
 4. 若有 code path，補 current behavior、既有 state、與改版 impact。
@@ -219,7 +249,7 @@ python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
     - 已確認內容
     - 待確認內容
     - 衝突內容
-6. 衝突先追問使用者；預設最多 1 輪，必要時可追加，但只問阻斷 spec 正確性的問題。
+6. 衝突不在此階段追問。依 Source-of-truth hierarchy（見 SKILL.md）對每個衝突取預設值繼續 compose，並同時：章節內標 `[Conflict]`、列入 Pending Summary 與❓待確認事項。所有衝突問題統一由 Phase 3.5 Step 3 一次向使用者確認。
 
 ## Phase 3: Compose
 
@@ -255,10 +285,19 @@ python3 <skills-path>/feature-spec-builder/scripts/extract_with_cache.py \
 - 附錄 B：歷史與遷移參考（已廢棄的舊邏輯，僅改版功能需要）
 - 附錄 C：參考資料與變更紀錄（來源連結 + 表格格式 Change Log）
 
+> **⚠️ Phase 3 出口 — DO NOT STOP**：寫出 `FEATURE-SPEC.md` 後，**絕對不要停下、不要回報「spec 已完成」、不要等待使用者指示**。此檔目前只是草稿，skill 尚未結束。**立即接續下方 Phase 3.5**（其 Step 0 會先輸出一行可見宣告）。這是本 skill 最常見的斷流點（Codex 等 harness 尤甚），違反此規則等於沒有完成 skill。
+>
+> 注意：「不可停」**不適用於 Phase 3.5 Step 3** —— 該處有問題清單時**必須停下等待使用者**；跳過提問直衝 Phase 4 與中途棄跑同樣是違規。
+
 ## Phase 3.5: Post-Draft Q&A（強制蒸餾輪次）
 
 依 `post-draft-qa-checklist.md` 執行內部審查與問答。此步驟為強制執行，**此階段可一次列出所有問題，不受
-Phase 1 逐一提問規則限制**。完成後進入 Phase 4。
+Phase 1 逐一提問規則限制**。
+
+**Q&A Gate（硬規則摘要，完整定義見 checklist 檔首）**：
+
+- 草稿含 `[Pending]` / `[Needs confirmation]` / 非空 `Pending Summary` / 非空 `❓ 待確認事項` / 未經確認的模型推論 → **必須**輸出 Step 3 問題清單並停下等待使用者。**把 pending 寫進 spec ≠ Phase 3.5 通過。**
+- 進入 Phase 4 前必須輸出一行 gate disposition（對使用者可見）：`PASS_NO_QUESTIONS`（Step 1 全過且 Pending Scan 命中 0）/ `PASS_USER_CONFIRMED`（已問、已逐項回覆）/ `PASS_USER_CONTINUE`（已問、使用者說「繼續」）。沒有 disposition 不得進 Phase 4。
 
 ## Phase 4: Validate
 
@@ -279,4 +318,5 @@ Phase 1 逐一提問規則限制**。完成後進入 Phase 4。
 - 衝突是否已追問或保留 pending
 - 是否把推論偽裝成既定規格
 - 是否符合固定章節順序（Human Zone 在前，AI Zone 附錄在後）
-- Phase 3.5 Q&A 是否已執行；未解決問題是否已加入❓待確認事項
+- Phase 3.5 gate disposition 是否已輸出且為 `PASS_NO_QUESTIONS` / `PASS_USER_CONFIRMED` / `PASS_USER_CONTINUE` 三值之一？若草稿含 pending 而 disposition 為 `PASS_NO_QUESTIONS` → gate 違規，**退回 Phase 3.5**
+- 未解決問題是否已加入❓待確認事項

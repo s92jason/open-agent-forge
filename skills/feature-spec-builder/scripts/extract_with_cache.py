@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
 import subprocess
 import sys
@@ -43,6 +44,24 @@ EXTRACTOR_MAP = {
     "axure": "extract_axure_page.py",
 }
 HASH_LENGTH = 8
+
+
+def current_extractor_version(source_type: str) -> Optional[str]:
+    """Read `EXTRACTOR_VERSION` from the extractor module without running it.
+
+    Both extractors are stdlib-only and guard execution behind
+    `if __name__ == "__main__"`, so importing them is cheap and side-effect-free.
+    Returns the version string, or None if it can't be determined (in which case
+    the caller degrades to skipping the version check rather than failing).
+    """
+    module_name = EXTRACTOR_MAP[source_type][:-len(".py")]
+    if str(SCRIPT_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR))
+    try:
+        mod = importlib.import_module(module_name)
+        return getattr(mod, "EXTRACTOR_VERSION", None)
+    except Exception:  # noqa: BLE001 — any import failure degrades to "no check"
+        return None
 
 
 def compute_link_hash(source_type: str, source_url: str, source_page: Optional[str]) -> str:
@@ -73,6 +92,17 @@ def check_cache_hit(
         return False, "source_url_mismatch"
     if (meta.get("source_page") or None) != (source_page or None):
         return False, "source_page_mismatch"
+
+    # Bust when the extractor's logic version changed since this cache was written.
+    # Required by CLAUDE.md cache principle #1: the fingerprint must include every
+    # factor that affects output, and extractor_version is the output-affecting one
+    # for extraction. None (undeterminable) degrades to skipping this check.
+    expected_extractor_version = current_extractor_version(source_type)
+    if (
+        expected_extractor_version is not None
+        and meta.get("extractor_version") != expected_extractor_version
+    ):
+        return False, "extractor_version_mismatch"
 
     try:
         fetched_at = datetime.fromisoformat(meta["fetched_at"])

@@ -29,16 +29,22 @@
 
 `<8-char-hash>` = `sha256("<source_type>|<url>|<page or empty>")[:8]`。同一 URL 永遠對應同一檔名，cache 命中天然成立。
 
-## Cache hit 判定（六項全中）
+## Cache hit 判定（七項全中）
 
 1. `<hash>.json` 與 `<hash>.cache.json` 都存在
 2. cache 內 `source_type` 與本次一致
 3. cache 內 `source_url` 與本次一致
 4. cache 內 `source_page` 與本次一致（Figma 才比；Axure 為空字串）
-5. `(now - fetched_at) <= ttl_days * 24h`（預設 7 天）
-6. 現存 JSON 的 sha256 等於 cache 內 `output_sha256`（完整性檢查）
+5. cache 內 `extractor_version` 等於目前 extractor 的 `EXTRACTOR_VERSION`（抽取邏輯改版即失效）
+6. `(now - fetched_at) <= ttl_days * 24h`（預設 7 天）
+7. 現存 JSON 的 sha256 等於 cache 內 `output_sha256`（完整性檢查）
 
 任一不符 → MISS → 呼叫 extractor 重抓並覆寫。
+
+> 第 5 項對應 CLAUDE.md「Cache 化原則 #1」：fingerprint 須含所有影響輸出的因素。
+> 對「抽取輸出」而言，唯一會改變結果的版本因素是 `extractor_version`（隨 extractor 程式碼走）。
+> `skill_version` 也寫進 cache metadata，但僅供觀察、**不參與失效判定**——skill 的編排版本不會改變
+> extractor 吐出的 JSON。改 extractor 邏輯時記得進 `EXTRACTOR_VERSION`，cache 才會正確失效。
 
 ## 各模式如何使用
 

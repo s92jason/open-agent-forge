@@ -307,7 +307,78 @@ def main() -> int:
     document = file_data.get("document", {})
 
     page = find_page(document, args.page, node_id)
-    if not page:
+    if page:
+        page_name = page.get("name", "Unknown")
+        print(f"Extracting frames from page: {page_name}")
+
+        frames = extract_frames(page)
+        print(f"Found {len(frames)} top-level frame(s).")
+        if not frames:
+            print(
+                "Warning: No frames found. The page may have deeply nested frames "
+                "beyond depth=3. Try specifying a direct frame URL with node-id.",
+                file=sys.stderr,
+            )
+
+        output = {
+            "file_key": file_key,
+            "page_name": page_name,
+            "granularity": "page",
+            "frame_count": len(frames),
+            "frames": frames,
+        }
+    elif node_id:
+        canonical_id = node_id.replace("-", ":")
+        try:
+            node_data = fetch_node_children(file_key, canonical_id, token)
+        except FigmaAPIError as e:
+            if e.code == 429:
+                print(
+                    "Figma API rate limit (429). Please wait a moment and retry.",
+                    file=sys.stderr,
+                )
+            elif e.code in (401, 403):
+                print(
+                    f"Figma API auth error ({e.code}): token may be invalid or expired.",
+                    file=sys.stderr,
+                )
+            else:
+                print(str(e), file=sys.stderr)
+            return 1
+
+        node = (node_data.get("nodes", {}).get(canonical_id) or {}).get("document")
+        if not node:
+            available = [p.get("name") for p in document.get("children", [])]
+            print(
+                f"Error: Page not found. Available pages: {available}\n"
+                f"Use --page to specify one.",
+                file=sys.stderr,
+            )
+            return 1
+
+        name = node.get("name", "")
+        node_type = node.get("type", "")
+        abs_box = node.get("absoluteBoundingBox", {})
+        frame_info = {
+            "id": node.get("id"),
+            "name": name,
+            "type": node_type,
+            "width": round(abs_box.get("width", 0)),
+            "height": round(abs_box.get("height", 0)),
+            "text_content": collect_text(node),
+            "inferred_state": infer_state(name),
+        }
+        print(f"Extracting single frame: {name} (node {canonical_id})")
+
+        output = {
+            "file_key": file_key,
+            "page_name": None,
+            "node_id": canonical_id,
+            "granularity": "frame",
+            "frame_count": 1,
+            "frames": [frame_info],
+        }
+    else:
         available = [p.get("name") for p in document.get("children", [])]
         print(
             f"Error: Page not found. Available pages: {available}\n"
@@ -315,25 +386,6 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-
-    page_name = page.get("name", "Unknown")
-    print(f"Extracting frames from page: {page_name}")
-
-    frames = extract_frames(page)
-    print(f"Found {len(frames)} top-level frame(s).")
-    if not frames:
-        print(
-            "Warning: No frames found. The page may have deeply nested frames "
-            "beyond depth=3. Try specifying a direct frame URL with node-id.",
-            file=sys.stderr,
-        )
-
-    output = {
-        "file_key": file_key,
-        "page_name": page_name,
-        "frame_count": len(frames),
-        "frames": frames,
-    }
 
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
@@ -345,7 +397,7 @@ def main() -> int:
         args.output,
         source_type="figma",
         source_url=args.url,
-        source_page=page_name,
+        source_page=args.page,
         extractor_version=EXTRACTOR_VERSION,
     )
     print(f"Wrote cache metadata: {cache_path}")

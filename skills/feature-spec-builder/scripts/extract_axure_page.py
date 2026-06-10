@@ -8,14 +8,18 @@ Access codes are read from macOS Keychain (via keychain_helper.py) or stdin.
 Outputs a spec-oriented JSON with sitemap, page list, and text content per page.
 
 Usage:
-    # With access code from Keychain (previously stored via keychain_helper.py axure-store):
+    # Preferred — access code resolved automatically from the secret store
+    # (previously saved via `keychain_helper.py axure-store`):
     python3 extract_axure_page.py "https://abc123.axshare.com/"
-
-    # With access code via --code argument:
-    python3 extract_axure_page.py "https://abc123.axshare.com/" --code "myAccessCode"
 
     # Custom output path (default: .ai-artifacts/feature-spec-builder/axure_data.json):
     python3 extract_axure_page.py "https://abc123.axshare.com/" --output path/to/axure_data.json
+
+Access code resolution priority: --code arg > AXURE_ACCESS_CODE env > secret store.
+Prefer the secret store or the AXURE_ACCESS_CODE env var. Avoid `--code` on shared
+machines: like every CLI argument it is briefly visible in process listings
+(`ps aux`). The feature-spec-builder flow never passes --code — it relies on the
+secret store via keychain_helper.py.
 """
 from __future__ import annotations
 
@@ -290,7 +294,7 @@ def check_no_auth_needed(
     # If we get a 200 with actual prototype content (not login page)
     if status == 200:
         if "prototype/login" not in body.lower() and (
-            "axure" in body.lower() or "mainFrame" in body.lower()
+            "axure" in body.lower() or "mainframe" in body.lower()
         ):
             return True
     return False
@@ -769,6 +773,7 @@ def main() -> int:
         )
         output = {
             "project_id": project_id,
+            "degraded": True,
             "url": args.url,
             "page_count": 0,
             "pages": [],

@@ -28,7 +28,7 @@ def write_cache_metadata(
     source_url: str,
     extractor_version: str,
     source_page: Optional[str] = None,
-    skill_version: str = "1.14.0",
+    skill_version: str = "unspecified",
     ttl_days: int = DEFAULT_TTL_DAYS,
 ) -> Path:
     """Write a `.cache.json` sibling describing the just-saved extraction output.
@@ -37,9 +37,14 @@ def write_cache_metadata(
         output_path: path to the freshly-written output JSON (e.g. figma_page.json).
         source_type: "figma" or "axure".
         source_url: original URL passed to the extractor.
-        extractor_version: extractor script's internal version tag.
+        extractor_version: extractor script's internal version tag. This is the
+            cache-bust factor honoured by extract_with_cache.check_cache_hit() —
+            bump it whenever an extractor's output format/logic changes.
         source_page: optional Figma page name (only relevant for Figma).
-        skill_version: feature-spec-builder skill version that produced this cache.
+        skill_version: feature-spec-builder skill version. Informational only —
+            the extraction output is independent of skill orchestration version,
+            so this field is NOT used for cache invalidation. Defaults to
+            "unspecified" rather than a stale literal to avoid lying in metadata.
         ttl_days: cache validity window in days; consumers may decide to ignore.
 
     Returns:

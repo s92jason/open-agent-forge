@@ -210,7 +210,7 @@ def store_token() -> int:
         print("Error: No token provided on stdin.", file=sys.stderr)
         return 1
     if len(token) < 10:
-        print("Error: Token looks too short to be valid (expected 40+ chars).", file=sys.stderr)
+        print("Error: Token looks too short to be valid.", file=sys.stderr)
         return 1
 
     if _secret_write(ACCOUNT_FIGMA, token):

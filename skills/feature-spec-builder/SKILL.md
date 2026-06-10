@@ -1,6 +1,7 @@
 ---
 name: feature-spec-builder
 description: 當使用者說「幫我根據 Axure 和 Figma 產 feature spec」「更新 FEATURE-SPEC.md」「依改版補工程規格文件」「幫我把 spec 對齊 code」「依目前程式碼同步 spec」「feature 收尾要對 spec」，或在英文說 "build/update a FEATURE-SPEC.md from Axure/Figma", "generate an engineering feature spec for RD/QA", "sync the spec to the current code" 時，建立、更新或同步以 RD/QA/AI 可共讀的 engineering feature spec。Supports three modes — Create / Update (menu-driven) / Code Sync（程式碼反向同步）。
+keywords: [feature spec, 工程規格, 規格文件, FEATURE-SPEC, Axure, Figma, spec 對齊, code sync, 同步 spec, engineering spec, RD spec, QA spec]
 ---
 
 # Engineering Feature Spec Builder
@@ -77,8 +78,8 @@ FEATURE-SPEC.md 分為兩區：**Human Zone**（人類快讀）在前，**AI Ref
 規則：
 
 - 不可默默用低優先來源覆蓋高優先來源。
-- 發現衝突時，先最少量追問使用者確認。
-- 若仍無法確認，文件內保留 pending，不可假裝定稿。
+- 發現衝突時，依上表 hierarchy 取預設值繼續，標記 [Conflict]，於 Phase 3.5 集中向使用者確認。
+- 若 Phase 3.5 仍無法確認，文件內保留 pending，不可假裝定稿。
 
 ## Minimum source gate
 
@@ -165,7 +166,11 @@ Code Sync mode 採 **CS-1 ~ CS-4 流程**（不與 Phase 1–4 混用）：
 
 ## Operating procedure
 
-執行前先讀取 `references/operating-procedure.md` 取得完整步驟。以下為各 phase 摘要：
+執行前先讀取 `references/operating-procedure.md` 取得完整步驟。
+
+**完成契約（跨 harness 防斷流）**：本 skill 只有跑到 **Phase 4 Validate 通過**才算完成；產出 `FEATURE-SPEC.md` 只是 Phase 3 草稿，**不等於完成**。全程**唯一允許停下交還使用者**的點只有三個：① Phase 1 intake 提問 ② Phase 1.5 補憑證 ③ Phase 3.5 Step 3 問題清單（**有問題時為強制停點，不是可選**）。其餘 phase 之間一律連續執行，**尤其 Phase 3 寫出文件後必須立即接 Phase 3.5，不可停下或回報完成**（這是 Codex 等 harness 最常見的斷流點）。Phase 3.5 結束時必須輸出 gate disposition（`PASS_NO_QUESTIONS` / `PASS_USER_CONFIRMED` / `PASS_USER_CONTINUE`）才能進 Phase 4；草稿含 pending 時 `PASS_NO_QUESTIONS` 不合法（見 `references/post-draft-qa-checklist.md` 的「Q&A Gate」）。
+
+以下為各 phase 摘要：
 
 - **Phase 1: Intake** — 逐一收集 mode、feature name、path、Axure link（多輪）、Figma link（多輪）、API doc（Create mode 必問）、token、設定（一次只問一個問題；Axure/Figma 步驟持續詢問直到使用者說「完成」/「沒了」/「done」）。**資源類問題（Axure / Figma / API）只蒐集不立即抓取**，所有來源收齊後在 Step 9 顯示資源摘要、由使用者明確確認才進入 Phase 1.5。
 - **Phase 1.5: Source Extraction** — 透過 `scripts/extract_with_cache.py` wrapper 抽取設計資料，
@@ -173,9 +178,9 @@ Code Sync mode 採 **CS-1 ~ CS-4 流程**（不與 Phase 1–4 混用）：
   **統一在 Phase 1 confirm gate 通過後執行批次抓取**：依序對每個 URL 呼叫 wrapper，單個 URL 失敗不阻斷其他 URL，所有 wrapper 跑完才在 Step 1.5.3 一次性匯報缺項與錯誤（缺 Axure access code / Figma token 失效 / URL 異常等），由使用者一次補齊後重跑缺項。
   Wrapper 內建 cache 機制：Create mode 自動沿用 cache、Update menu A/B 必加 `--bust-cache` 強制重抓
   （規則見 `references/cache-policy.md`）。Code Sync mode 不跑此 Phase。
-- **Phase 2: Reconcile** — 交叉比對 Axure 流程、Figma 畫面、API contract，標記已確認 / 待確認 / 衝突
-- **Phase 3: Compose** — 依固定章節順序輸出 `FEATURE-SPEC.md`（Human Zone 📋→✅ → AI Zone 附錄 A–C）
-- **Phase 3.5: Post-Draft Q&A** — 依 `references/post-draft-qa-checklist.md` 強制執行內部審查，此階段可一次列出所有問題
+- **Phase 2: Reconcile** — 交叉比對 Axure 流程、Figma 畫面、API contract，標記已確認 / 待確認 / 衝突；衝突不追問，取 hierarchy 預設並標 [Conflict]
+- **Phase 3: Compose** — 依固定章節順序輸出 `FEATURE-SPEC.md`（Human Zone 📋→✅ → AI Zone 附錄 A–C）。**寫檔後不可停、不可回報完成，立即接 Phase 3.5**
+- **Phase 3.5: Post-Draft Q&A** — 先輸出一行可見宣告（Step 0）再依 `references/post-draft-qa-checklist.md` 強制執行內部審查，此階段可一次列出所有問題。結束時必須輸出 gate disposition；**把 pending 寫進 spec 不等於通過此 phase**
 - **Phase 4: Validate** — 輸出前逐項檢查文件完整性與正確性
 
 ## Output contract
@@ -187,7 +192,7 @@ Code Sync mode 採 **CS-1 ~ CS-4 流程**（不與 Phase 1–4 混用）：
 - `# Feature Spec: <Feature Name>`
 - `Status: <Draft / Pending API confirmation / In Progress / Ready>`
 - `Last Updated: <date>`
-- `Mode: <Create / Update>`
+- `Mode: <Create / Update / Code Sync>`
 - `Structure: Human Zone (摘要 → 驗收條件) | AI Zone (附錄 A～C)`
 
 若有待補，文件頭部必須加：
@@ -246,7 +251,7 @@ Code Sync mode 採 **CS-1 ~ CS-4 流程**（不與 Phase 1–4 混用）：
 
 1. 文件頭部的 `Pending Summary`
 2. 章節內的 `[Pending]` 或 `[Needs confirmation]`
-3. 文件末尾的 `Open Questions / Pending Items`
+3. 文件末尾的 `❓ 待確認事項` 章節（Human Zone 最後一章，集中收斂所有 pending 的完整描述）
 
 ### Tone
 
@@ -287,8 +292,9 @@ Code Sync mode 採 **CS-1 ~ CS-4 流程**（不與 Phase 1–4 混用）：
     - `references/examples/update-feature-example.md`
 - 當你在 Phase 3.5 執行 Post-Draft Q&A 時，讀 `references/post-draft-qa-checklist.md`
 - 當使用者要查看或更新專案設定時，讀 `references/settings-management.md`
-- 當你要了解 Phase 1.5 的 cache 規則（hit 判定六項、Update menu A/B 例外 `--bust-cache`、檔案結構、各模式分流）時，
+- 當你要了解 Phase 1.5 的 cache 規則（hit 判定七項、Update menu A/B 例外 `--bust-cache`、檔案結構、各模式分流）時，
   讀 `references/cache-policy.md`
+- **腳本路徑約定**：下方所有 `scripts/...` 都是相對於本 skill 安裝目錄的捷徑。skill 安裝位置因 harness 而異（Claude plugins 目錄 / Codex skills 目錄 / antigravity workspace），**不可假設 cwd 是 skill 目錄**。執行任何腳本前，先把這份 `SKILL.md` 的所在目錄當作 `<skill-dir>`，用絕對路徑 `<skill-dir>/scripts/<script>.py` 呼叫（詳見 `operating-procedure.md` Step 1.5.0）。
 - 當需要管理 Figma token 時，使用 `scripts/keychain_helper.py`：
     - 存入：`echo "<token>" | python3 scripts/keychain_helper.py store`
     - 檢查：`python3 scripts/keychain_helper.py check`（exit 0=有，exit 1=無）
@@ -313,7 +319,7 @@ Code Sync mode 採 **CS-1 ~ CS-4 流程**（不與 Phase 1–4 混用）：
 ## Error handling
 
 - 缺設計來源：停在 intake，明確指出缺口，不假裝完成。
-- 來源衝突：先追問；若未確認，保留 pending，不擅自裁決。
+- 來源衝突：取 hierarchy 預設並標 [Conflict]，於 Phase 3.5 集中確認；未確認前不得移除標記。
 - API 未定：保留章節，標示 `Pending API confirmation`。
 - 只有 Figma file/page link，沒有 key frames：要求補至少 3 個關鍵 frame links。
 - Update mode 遇到既有 spec 與新來源不一致：優先保留既有內容並標衝突，不直接刪改。

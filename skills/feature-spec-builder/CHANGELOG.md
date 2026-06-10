@@ -4,6 +4,34 @@ All notable changes to this skill are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-06-10
+
+Covers the upstream `forge-skills` feature-spec-builder updates from v1.18.0
+and v1.19.0.
+
+### Added
+- Phase 3.5 Q&A Gate with explicit gate dispositions and mandatory pending scans.
+- Figma frame-link extraction via the nodes API, with `granularity` marking page
+  versus frame output.
+- Manual regression scenarios for the Phase 3.5 gate, including the original
+  missing-API trap case.
+- Template/init synchronization guidance and improved update-mode scan evidence.
+
+### Changed
+- Source conflicts now use the source-of-truth hierarchy as the draft default and
+  are confirmed centrally in Phase 3.5 instead of stopping during reconcile.
+- Examples now follow the pending-summary and live-spec rules used by the skill.
+- Phase 1.5 source extraction documents rate-limit retry handling and degraded
+  Axure output handling.
+
+### Fixed
+- Figma cache metadata now stores the caller-provided `--page` value, preventing
+  permanent cache misses when the API resolves a different page name.
+- Axure no-auth detection now checks `mainframe` against lower-cased HTML.
+- Axure partial sitemap outputs are marked `degraded` so they are not treated as
+  successful extraction.
+- Figma token length errors no longer mention an outdated 40-character threshold.
+
 ## [1.0.0] - 2026-05-28
 
 First standalone release.

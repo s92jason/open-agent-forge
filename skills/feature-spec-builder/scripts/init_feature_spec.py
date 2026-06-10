@@ -1,164 +1,286 @@
 #!/usr/bin/env python3
+"""Initialize a FEATURE-SPEC.md skeleton.
+
+The skeleton MUST mirror `references/feature-spec-template.md`（中文圖示結構，
+Human Zone 摘要→驗收條件 / AI Zone 附錄 A～C）。若 template 改版，請同步本檔，
+否則 Phase 4 Validate 會對不上結構。template 是唯一真相，本檔只是它的可執行副本。
+"""
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 from datetime import date
 
-FLOW_MERMAID_BLOCK = """~~~mermaid
-flowchart TD
-    A[Entry] --> B[Main Screen]
-~~~"""
-
-IO_MERMAID_BLOCK = """~~~mermaid
-flowchart LR
-    subgraph Inputs
-        UI[User Action]
-        API[API Response]
-    end
-    subgraph Processing
-        VM[ViewModel]
-    end
-    subgraph Outputs
-        Screen[UI Render]
-        Nav[Navigation]
-        Track[Analytics]
-    end
-    UI --> VM
-    API --> VM
-    VM --> Screen
-    VM --> Nav
-    VM --> Track
-~~~"""
-
+# 與 references/feature-spec-template.md 對齊的骨架。
+# 注意：附錄 A.2 含字面 `{ }`，故 build_content() 用 str.replace 而非 str.format。
 TEMPLATE = """# Feature Spec: {feature_name}
 
 Status: Draft
 Last Updated: {today}
 Mode: Create
-Structure: Human Zone (Document Status → UI Logic) | AI Zone (Input/Output → Change Log)
+Structure: Human Zone (摘要 → 驗收條件) | AI Zone (附錄 A～C)
 
-## TL;DR
--
--
--
--
+---
+
+## 📋 摘要
+
+**功能簡介**
+<2-3 行說明這個功能「是什麼」、「幹嘛用的」，讓第一次接手的人能理解功能目的與定位>
+
+**這次改了什麼**
+<一段話描述本次改版重點；若為全新功能可寫「初版建立」>
+
+**使用者主路徑**
+<一行描述 happy path>
+
+**前端負責 vs 不負責**
+
+| 前端負責 | 前端不負責 |
+|------|-------|
+|      |       |
+
+**影響的 API / 模組 / 畫面**
+
+- API：
+- 新增：
+- 更新：
+- 共用：
+- DI：
 
 ## Pending Summary
-- [Pending] Axure / Figma intake not completed
 
-## Scope
+- [Pending] Axure / Figma intake 尚未完成
 
-### In Scope
+---
+
+## 🎯 目標與範圍
+
+### 業務目標
+
+<為什麼做這個功能>
+
+### 使用者價值
 -
 
-### Out of Scope
--
-
-### This Change
-- Initial draft created
-
-## Flow
-
-### Main Flow
-{flow_mermaid_block}
-
-### Flow Notes
-- Entry:
-- Main flow:
-- Alternate flow:
-- Failure / retry / back:
-
-## Screens / Components
-### <Screen Name>
-- Purpose:
-- Key components:
-- Related flow:
-
-## UI Logic & State Rules
-
-### Main Screen
-**Purpose**
--
-
-| State | Trigger | UI Behavior | CTA | Notes |
-|---|---|---|---|---|
-| Loading |  |  |  |  |
-| Success |  |  |  |  |
-| Empty |  |  |  |  |
-| Error |  |  |  |  |
-
-**Key interactions**
+### 不包含範圍
 -
 
 ---
-> **AI Reference Zone** — 以下章節為結構化工程資料，主要供 AI Agent 與深度查找使用。
+
+## 🔄 核心流程
+
+### 頁面清單
+
+| 頁面 | 說明 | 進入方式 |
+|----|----|------|
+|    |    |      |
+
+### 主流程圖
+
+**關鍵時序**：<一行摘要>
+
+```mermaid
+flowchart TD
+    A[Entry] --> B[Main Screen]
+```
+
+### 替代流程與失敗處理
+-
+
 ---
 
-## Input / Output
+## 📐 業務規則
 
-{io_mermaid_block}
+### <規則類型名稱>
 
-### User Input
+| 情境 | 條件 | 行為 | 實作位置 |
+|----|----|----|------|
+|    |    |    | TBD  |
+
+---
+
+## 📱 畫面規格
+
+### <ScreenName>（中文名稱）
+
+**用途**：
+
+**資料來源**：<API 名稱 + 頂層物件>
+
+- 需特殊處理的欄位：
+
+**狀態**
+
+| 狀態      | 觸發 | 畫面行為 |
+|---------|----|------|
+| Loading |    |      |
+| Success |    |      |
+| Empty   |    |      |
+| Error   |    |      |
+
+**使用者操作**
 -
 
-### Data Input
+**元件細節**
 -
 
-### UI Output
+**錯誤處理**
 -
 
-### Navigation Output
+---
+
+## 🔌 API 規格
+
+### <API_NAME>（中文名稱）
+
+**用途**：
+**呼叫時機**：
+
+**Request**
+
+| 欄位 | 型別 | 說明 |
+|----|----|----|
+|    |    |    |
+
+**前端使用的回傳欄位**
+
+| 欄位 | 型別 | 用途 |
+|----|----|----|
+|    |    |    |
+
+**前端不使用的欄位**
+
+| 欄位 | 原因 |
+|----|----|
+|    |    |
+
+**備註**：
+
+---
+
+## 🛠️ 程式影響範圍
+
+### 新增
+
+| 檔案 | 說明 |
+|----|----|
+|    |    |
+
+### 更新
+
+| 檔案 | 變更 |
+|----|----|
+|    |    |
+
+### 共用元件
+
+| 檔案 | 用途 |
+|----|----|
+|    |    |
+
+### DI / 快取 / 導頁
 -
 
-### Analytics / Side Effects
+### 技術備註
 -
 
-## API / Data Contract
+---
 
-### Confirmed
--
+## ✅ 驗收條件
 
-### Pending confirmation
-- [Pending]
+### 正常路徑
 
-### Error / fallback handling
--
+| #  | 前提 | 操作 | 預期結果 |
+|----|----|----|------|
+| H1 |    |    |      |
 
-## QA Checklist / Edge Cases
-| Scenario | Trigger | Expected |
-|---|---|---|
-| Happy path |  |  |
+### 邊界情境
 
-## Technical Notes
--
+| #  | 前提 | 操作 | 預期結果 |
+|----|----|----|------|
+| E1 |    |    |      |
 
-## References
-- Axure: <link> —
-- Figma: <link> —
-- API: <link> —
-- Code path: <path> —
+### 失敗情境
 
-## Open Questions / Pending Items
--
+| #  | 前提 | 操作 | 預期結果 |
+|----|----|----|------|
+| F1 |    |    |      |
 
-## Change Log
-- {today}: Initial draft created by init_feature_spec.py
+---
+
+## ❓ 待確認事項
+
+1. **<問題標題>**：<描述問題，建議確認對象>
+
+---
+> **AI Reference Zone** — 以下附錄為結構化工程資料，主要供 AI Agent 與深度查找使用。各欄位使用方式見上方🔌 API 規格章節。
+---
+
+## 附錄 A：型別定義與欄位對應
+
+### A.1 舊欄位 → 新欄位對應
+
+| 舊名（已廢棄） | 新名 | API |
+|---------|----|-----|
+|         |    |     |
+
+### A.2 完整型別定義
+
+```
+// <API_NAME> Response
+{
+  field: Type
+}
+```
+
+### A.3 Enum / 類型對應表
+
+| 值 | 觸發條件 | 前端行為 |
+|---|------|------|
+|   |      |      |
+
+### A.4 Analytics 事件表
+
+| Event | 觸發時機 | 關鍵參數 |
+|-------|------|------|
+|       |      |      |
+
+---
+
+## 附錄 B：歷史與遷移參考
+
+<若為新功能，可刪除此附錄>
+
+---
+
+## 附錄 C：參考資料與變更紀錄
+
+### 參考資料
+
+- **Axure**: <link> — <用途>
+- **Figma**: <link> — <用途>
+- **Existing Code**: <path> — <用途>
+
+### 變更紀錄
+
+| 日期           | 變更                          |
+|--------------|-----------------------------|
+| {today} | 初版骨架建立（init_feature_spec.py） |
 """
 
 
 def build_content(feature_name: str) -> str:
-    return TEMPLATE.format(
-        feature_name=feature_name.strip(),
-        today=date.today().isoformat(),
-        flow_mermaid_block=FLOW_MERMAID_BLOCK,
-        io_mermaid_block=IO_MERMAID_BLOCK,
+    # 用 replace 而非 str.format：附錄 A.2 的型別範例含 `{` / `}` 字面，
+    # str.format 會把它們誤判為欄位佔位符而拋錯。replace 只替換明確 token，最安全。
+    return (
+        TEMPLATE.replace("{feature_name}", feature_name.strip())
+        .replace("{today}", date.today().isoformat())
     )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Initialize a FEATURE-SPEC.md skeleton."
+        description="Initialize a FEATURE-SPEC.md skeleton (canonical 中文圖示結構)."
     )
     parser.add_argument("--feature", required=True, help="Feature display name")
     parser.add_argument("--output", required=True, help="Output markdown file path")

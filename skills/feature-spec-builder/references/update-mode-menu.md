@@ -49,7 +49,7 @@ H. 結束並進入 Reconcile
 ### A. Axure 補充 / 修改
 
 1. 詢問：「請提供 Axure link。」
-2. 多輪收集，沿用「完成 / 沒了 / done」終止語（與 `operating-procedure.md` Phase 1 Step 4 一致）。**本輪收齊的 URL 加入本次 Update 的待抓清單，不在此 step 呼叫 wrapper**。
+2. 多輪收集，沿用「完成 / 沒了 / done」終止語（與 `operating-procedure.md` Phase 1 Step 5 一致）。**本輪收齊的 URL 加入本次 Update 的待抓清單，不在此 step 呼叫 wrapper**。
 3. 標記受影響章節：🔄 核心流程、📱 畫面規格（凡新 Axure 提及的頁面/分支）、❓ 待確認事項（若 Axure 解決了原本的 pending）。**收齊就標記，不等抓取結果**——使用者已宣告 intent，即使後續抓取失敗或被略過個別 URL，章節仍視為 touch。
 4. 結束後回菜單。**實際 wrapper 抓取一律延後到 H 觸發**（A 累積的 URL 屆時必加 `--bust-cache`：使用者在 A 重列 URL 即表示要 refetch，規則見 `cache-policy.md`）。
 
@@ -117,7 +117,7 @@ H. 結束並進入 Reconcile
 ## Quick path：使用者已明確說明要動什麼
 
 若使用者第一句已說清要動哪些（例：「我要更新 API 跟回答待確認事項」），**跳過菜單顯示**，直接依序執行 C → D → H。
-這對應 `operating-procedure.md` line 7–8 的「快速跳過規則」。
+這對應 `operating-procedure.md` Phase 1 開頭的「快速跳過規則」段落。
 
 ## 範圍標記（給 Phase 2 / 3 / 3.5 用）
 

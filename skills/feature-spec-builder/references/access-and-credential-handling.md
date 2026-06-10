@@ -203,11 +203,11 @@ Figma token 由 `keychain_helper.py` 管理，依平台保存到 macOS Keychain 
 Axure access code 以 JSON mapping 保存（一筆 entry，key 為 share link，value 為 code）：
 
 - 存入：`echo "<code>" | python3 keychain_helper.py axure-store --link "<share_link>"`
-- 查詢：`python3 keychain_helper.py axure-get --link "<share_link>"`（印出 code，供 Agent 搭配 WebFetch
+- 查詢：`python3 keychain_helper.py axure-get --link "<share_link>"`（印出 code，供 Agent 搭配網頁抓取工具
   使用）
 - 檢查：`python3 keychain_helper.py axure-check --link "<share_link>"`（exit 0=有，exit 1=無）
 - 刪除：`python3 keychain_helper.py axure-delete --link "<share_link>"`
-- 注意：Agent 需要 code 來搭配 WebFetch，因此 `axure-get` 會印出 code 到 stdout，code 會進入 Agent
+- 注意：Agent 需要 code 來搭配網頁抓取工具，因此 `axure-get` 會印出 code 到 stdout，code 會進入 Agent
   context。
 
 永遠不要：

@@ -2,7 +2,7 @@
 
 Status: <Draft | Pending API confirmation | In Progress | Ready>
 Last Updated: <YYYY-MM-DD>
-Mode: <Create | Update>
+Mode: <Create | Update | Code Sync>
 Structure: Human Zone (摘要 → 驗收條件) | AI Zone (附錄 A～C)
 
 ---
