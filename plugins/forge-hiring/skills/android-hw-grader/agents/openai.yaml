@@ -1,0 +1,4 @@
+interface:
+  display_name: "Android Homework Grader"
+  short_description: "Grade Android interview assignments against saved rubrics"
+  default_prompt: "Use $android-hw-grader to grade the Android project in this directory against a saved rubric."

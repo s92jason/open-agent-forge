@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Review"
+  short_description: "Review a pull request by number or URL: logical grouping, reading order, inline findings, local review page"
+  default_prompt: "Use $pr-review to review pull request <number or URL> and open the review page."

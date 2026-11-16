@@ -1,0 +1,11 @@
+{
+  "name": "forge-spec",
+  "version": "1.0.0",
+  "description": "工程規格文件技能套件：將 Axure / Figma 設計或現有程式碼整理成 RD / QA / AI 可共讀的 engineering feature spec，支援 Create / Update / Code Sync 三種模式。",
+  "author": { "name": "Jason Chen" },
+  "keywords": [
+    "feature spec", "工程規格", "規格文件", "FEATURE-SPEC",
+    "Axure", "Figma", "spec 對齊", "code sync", "同步 spec",
+    "engineering spec", "RD spec", "QA spec"
+  ]
+}

@@ -1,7 +1,8 @@
 ---
 name: feature-spec-builder
 description: 當使用者說「幫我根據 Axure 和 Figma 產 feature spec」「更新 FEATURE-SPEC.md」「依改版補工程規格文件」「幫我把 spec 對齊 code」「依目前程式碼同步 spec」「feature 收尾要對 spec」，或在英文說 "build/update a FEATURE-SPEC.md from Axure/Figma", "generate an engineering feature spec for RD/QA", "sync the spec to the current code" 時，建立、更新或同步以 RD/QA/AI 可共讀的 engineering feature spec。Supports three modes — Create / Update (menu-driven) / Code Sync（程式碼反向同步）。
-keywords: [feature spec, 工程規格, 規格文件, FEATURE-SPEC, Axure, Figma, spec 對齊, code sync, 同步 spec, engineering spec, RD spec, QA spec]
+metadata:
+  keywords: "feature spec, 工程規格, 規格文件, FEATURE-SPEC, Axure, Figma, spec 對齊, code sync, 同步 spec, engineering spec, RD spec, QA spec"
 ---
 
 # Engineering Feature Spec Builder

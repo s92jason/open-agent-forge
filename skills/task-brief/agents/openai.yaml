@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Brief"
+  short_description: "Turn a one-line request into a hand-off brief for a new session"
+  default_prompt: "Use $task-brief to write a kickoff prompt and recommend model, effort and permission mode for this task."

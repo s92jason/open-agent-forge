@@ -1,0 +1,4 @@
+interface:
+  display_name: "Smart Commit Flow"
+  short_description: "Draft commit messages, commit, then push after confirmation"
+  default_prompt: "Use $smart-commit-flow to draft a commit message for the staged changes and commit them."

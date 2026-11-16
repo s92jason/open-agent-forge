@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Git Branches"
+  short_description: "只要描述需求，由精靈安全建立多條相關 Git branch"
+  default_prompt: "Use $create-git-branches and describe the branches you need; let the guided wizard infer or confirm the project rules."

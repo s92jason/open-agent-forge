@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Spec Builder"
+  short_description: "Build or sync an engineering feature spec for RD and QA"
+  default_prompt: "Use $feature-spec-builder to build or update a FEATURE-SPEC.md from Axure/Figma or the current code."

@@ -1,0 +1,70 @@
+{
+  "name": "open-agent-forge",
+  "owner": {
+    "name": "Jason Chen"
+  },
+  "plugins": [
+    {
+      "name": "forge-git-flow",
+      "source": "./plugins/forge-git-flow",
+      "category": "code-review",
+      "keywords": [
+        "git",
+        "branch",
+        "diff",
+        "code review",
+        "commit",
+        "pull request",
+        "unit test",
+        "docstring"
+      ],
+      "description": "Git 工作流技能：branch diff review、unit test 補齊、docstring 標註、PR 描述、智慧 commit 與批次建立 branch。"
+    },
+    {
+      "name": "forge-hiring",
+      "source": "./plugins/forge-hiring",
+      "category": "productivity",
+      "keywords": [
+        "hiring",
+        "招聘",
+        "面試",
+        "作業評分",
+        "interview",
+        "grading",
+        "Android"
+      ],
+      "description": "招聘評測技能：管理面試作業題目與評分標準，分析候選人專案並輸出結構化評語與分數。"
+    },
+    {
+      "name": "forge-spec",
+      "source": "./plugins/forge-spec",
+      "category": "documentation",
+      "keywords": [
+        "feature spec",
+        "工程規格",
+        "Axure",
+        "Figma",
+        "code sync",
+        "RD",
+        "QA"
+      ],
+      "description": "工程規格文件技能：將 Axure / Figma 設計或現有程式碼整理成 RD / QA / AI 可共讀的 engineering feature spec。"
+    },
+    {
+      "name": "forge-toolkit",
+      "source": "./plugins/forge-toolkit",
+      "category": "productivity",
+      "keywords": [
+        "toolkit",
+        "工具包",
+        "task brief",
+        "交接",
+        "kickoff prompt",
+        "模型選擇",
+        "effort",
+        "permission mode"
+      ],
+      "description": "泛用工具包：跨領域、任何技術棧都適用的工作方法類技能。task-brief 把一句需求轉成新 session 的交接包（model / effort / mode 建議、kickoff prompt、啟動指令與 deep link）。"
+    }
+  ]
+}

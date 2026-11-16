@@ -1,0 +1,10 @@
+{
+  "name": "forge-hiring",
+  "version": "1.0.0",
+  "description": "招聘評測技能套件：管理面試作業題目與評分標準，分析候選人的 Android 專案並輸出結構化評語與分數。",
+  "author": { "name": "Jason Chen" },
+  "keywords": [
+    "hiring", "招聘", "面試", "作業評分", "評分標準",
+    "interview", "grading", "assignment", "Android", "候選人"
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Branch Wrap-Up"
+  short_description: "Annotate, review, commit and draft a PR for this branch"
+  default_prompt: "Use $branch-wrap-up to finish this feature branch and prepare it for a PR."

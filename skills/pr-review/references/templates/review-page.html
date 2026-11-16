@@ -1,0 +1,1898 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme-pref="__THEME_PREF__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>PR Review</title>
+<script>
+(function () {
+  // 由本機的 review 服務開啟時，主題偏好寫在 <html> 上（存在電腦上，服務重新啟動也還在）；
+  // 直接開啟 HTML 檔時這個屬性是空的，才用瀏覽器裡存的。
+  var pref = document.documentElement.getAttribute('data-theme-pref');
+  if (!pref) { try { pref = localStorage.getItem('forge-pr-review:theme'); } catch (err) { pref = null; } }
+  var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+})();
+</script>
+<style>
+/* 顏色的對比有測試把關（tests/test_pr_review.py 的 PageContrastTests）：內文 ≥ 12:1、次要文字與標籤 ≥ 7:1。
+   亮度分三層：最亮（實心色塊）只給要使用者處理的；清楚（淡底深字、粗體）給要他看的；安靜（灰）給背景資訊。
+   每一種標記都帶文字，不靠顏色分辨（WCAG 1.4.1）。中文的小字不小於 13px。 */
+:root {
+  color-scheme: light;
+  --bg: #eceef2; --surface: #ffffff; --surface-2: #f1f3f6; --surface-3: #e3e6ec;
+  --text: #1a1d21; --text-2: #383d45; --muted: #494e57;
+  --border: #cdd2da; --border-strong: #7a818b;
+  --accent: #203c9e; --accent-bg: #e3eaff;
+  --add-bg: #dff5e4; --add-no: #c3ebcd; --add-sign: #0b5325;
+  --del-bg: #ffe5e3; --del-no: #ffcfcb; --del-sign: #8e1813;
+  --hunk-bg: #e3e6ec; --hunk-text: #383d45;
+  --p0: #8e1217; --p0-bg: #ffe2e3; --p1: #6b4100; --p1-bg: #ffedc2; --p2: #383d45; --p2-bg: #e3e6ec;
+  /* 最亮的一層只給「要你處理的」：P0，以及第 2 輪起「這一輪改的」 */
+  --p0-solid: #c4222b; --p0-on: #ffffff;
+  --round: #5b3fd6; --round-on: #ffffff; --round-bg: #efeaff; --round-text: #4326b8; --round-line: #cfc3ff;
+  --ok: #0b5325; --ok-bg: #dbf3e2;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --topbar: 58px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1012; --surface: #17191c; --surface-2: #202328; --surface-3: #2b2f36;
+  --text: #eef0f2; --text-2: #d5d9de; --muted: #b3b9c2;
+  --border: #353a41; --border-strong: #6f7682;
+  --accent: #b0c0ff; --accent-bg: #1c2a55;
+  --add-bg: #10301c; --add-no: #184a2a; --add-sign: #7be3a2;
+  --del-bg: #451a1c; --del-no: #5c2225; --del-sign: #ffaaa6;
+  --hunk-bg: #2b2f36; --hunk-text: #d5d9de;
+  --p0: #ffb1ae; --p0-bg: #4a1519; --p1: #ffd668; --p1-bg: #3a2a06; --p2: #d5d9de; --p2-bg: #2b2f36;
+  --p0-solid: #ff7b7b; --p0-on: #2a0608;
+  --round: #b9a8ff; --round-on: #1a1140; --round-bg: #251d47; --round-text: #cfc4ff; --round-line: #4a3d8a;
+  --ok: #7be3a2; --ok-bg: #10301c;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: calc(var(--topbar) + 12px); }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.65 var(--sans); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { background: var(--surface-3); }
+button[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+code { font-family: var(--mono); font-size: max(13px, 0.9em); background: var(--surface-3); padding: 1px 5px; border-radius: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.55; background: var(--surface-2); border: 1px solid var(--border); padding: 8px 10px; border-radius: 6px; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4; }
+[hidden] { display: none !important; }
+
+#topbar { position: sticky; top: 0; z-index: 20; height: var(--topbar); display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--border-strong); }
+#topbar .title { min-width: 0; flex: 1; }
+#topbar .title b { display: block; font-size: 16px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#topbar .sub { font-size: 13px; line-height: 1.4; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#topbar .tools { display: flex; align-items: center; gap: 8px; flex-shrink: 0; font-size: 13px; }
+#progress-bar { position: absolute; left: 0; bottom: -2px; height: 3px; width: 0; background: var(--ok); transition: width 0.2s; }
+.progress { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 狀態用純文字標示，重要的加粗；膠囊只留給嚴重度（.sev） */
+.tag { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.tag.strong { font-weight: 600; color: var(--text); }
+a.conn { font-size: 13px; color: var(--muted); white-space: nowrap; }
+a.conn:hover { color: var(--text); }
+a.conn.off { color: var(--accent); font-weight: 600; }
+a.conn.off:hover { color: var(--accent); text-decoration: underline; }
+.sev { display: inline-block; font-size: 13px; font-weight: 600; line-height: 20px; padding: 0 7px; border-radius: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sev.P0 { background: var(--p0-solid); color: var(--p0-on); font-weight: 700; }
+.sev.P1 { background: var(--p1-bg); color: var(--p1); }
+.sev.P2 { background: var(--p2-bg); color: var(--p2); }
+
+details.menu { position: relative; }
+details.menu > summary { list-style: none; cursor: pointer; user-select: none; font-size: 13px; line-height: 1.65; border: 1px solid var(--border-strong); border-radius: 6px; padding: 4px 10px; background: var(--surface); }
+details.menu > summary::-webkit-details-marker { display: none; }
+details.menu > summary:hover, details.menu[open] > summary { background: var(--surface-3); }
+.menu-panel { position: absolute; right: 0; top: calc(100% + 6px); min-width: 190px; z-index: 30; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); }
+.menu-panel button { text-align: left; border-color: transparent; padding: 6px 10px; }
+.menu-panel button[aria-pressed="true"] { border-color: var(--accent); }
+.menu-panel hr { width: 100%; margin: 4px 0; border: 0; border-top: 1px solid var(--border); }
+.menu-panel .menu-note { margin: 0; padding: 2px 10px 4px; max-width: 250px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+
+#layout { display: grid; grid-template-columns: clamp(220px, 23vw, 300px) minmax(0, 1fr); align-items: start; }
+#sidebar { position: sticky; top: var(--topbar); height: calc(100vh - var(--topbar)); overflow-y: auto; padding: 14px 10px 30px; border-right: 1px solid var(--border); font-size: 14px; line-height: 1.5; }
+#sidebar .label { font-size: 13px; font-weight: 600; color: var(--muted); padding: 12px 10px 4px; }
+#sidebar a.nav { display: flex; gap: 8px; align-items: baseline; padding: 6px 10px; border-radius: 6px; color: var(--text); }
+#sidebar a.nav:hover { background: var(--surface-3); text-decoration: none; }
+#sidebar a.nav.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+#sidebar a.nav.done .name { color: var(--muted); }
+#sidebar a.nav.done .num { color: var(--ok); font-weight: 700; }
+#sidebar .num { flex: 0 0 1.5em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+#sidebar .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#sidebar .meta { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+#sidebar .meta .sev { margin-left: 4px; }
+#main { padding: 22px 30px 120px; max-width: 1240px; min-width: 0; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; margin-bottom: 16px; }
+.card h2 { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
+.card h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 18px 0 6px; }
+.card h2 + h3 { margin-top: 6px; }
+.banner { border-color: var(--p1); background: var(--p1-bg); color: var(--p1); }
+.prose { margin: 0; max-width: 86ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.score { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.score .total { font-size: 28px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.score .total small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.score .meaning { color: var(--text-2); font-size: 14px; margin-top: 6px; max-width: 240px; }
+table.items { border-collapse: collapse; flex: 1; min-width: min(100%, 480px); font-size: 14px; }
+table.items td { padding: 5px 12px 5px 0; vertical-align: top; border-top: 1px solid var(--border); }
+table.items td:first-child { white-space: nowrap; padding-right: 16px; }
+table.items td.pts { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+table.items td.why { color: var(--text-2); }
+ul.plain { margin: 0; padding-left: 20px; max-width: 86ch; }
+ul.plain li { margin: 3px 0; }
+.finding-index a { display: flex; gap: 8px; align-items: baseline; padding: 5px 6px; border-radius: 6px; color: var(--text); }
+.finding-index a:hover { background: var(--surface-3); text-decoration: none; }
+.finding-index .fid { color: var(--muted); font-family: var(--mono); font-size: 13px; flex: 0 0 2.6em; }
+.finding-index .where { color: var(--muted); font-family: var(--mono); font-size: 13px; margin-left: auto; padding-left: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+
+ol.flow { list-style: none; margin: 0; padding: 0; counter-reset: step; max-width: 86ch; }
+ol.flow li { position: relative; padding: 0 0 12px 30px; counter-increment: step; }
+ol.flow li:last-child { padding-bottom: 0; }
+ol.flow li::before { content: ''; position: absolute; left: 8px; top: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); }
+ol.flow li:not(:last-child)::after { content: ''; position: absolute; left: 11px; top: 22px; bottom: 1px; width: 1px; background: var(--border); }
+ol.flow .to { margin-left: 8px; font-size: 13px; white-space: nowrap; }
+ol.map { list-style: none; margin: 0; padding: 0; }
+ol.map li { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 8px; padding: 9px 0; border-top: 1px solid var(--border); }
+ol.map li:first-child { border-top: 0; padding-top: 2px; }
+.step-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; flex: none; background: var(--text); color: var(--surface); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+ol.map .map-title { font-weight: 600; color: var(--text); }
+ol.map .map-meta { margin-left: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+ol.map .map-meta .sev { margin-left: 4px; }
+ol.map .map-summary { color: var(--text-2); font-size: 14px; max-width: 86ch; white-space: pre-wrap; }
+ol.map .map-rel { font-size: 13px; color: var(--muted); }
+.group > h2 code, #sidebar code, ol.map .map-title code { background: none; padding: 0; }
+
+.group { margin: 36px 0 0; }
+.group > h2 { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 600; line-height: 1.35; margin: 0 0 6px; }
+.group > h2 .count { font-size: 13px; font-weight: 400; color: var(--muted); white-space: nowrap; }
+.group-summary { margin: 0 0 10px; max-width: 86ch; white-space: pre-wrap; overflow-wrap: anywhere; }
+.relations { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 12px; }
+.relations a, .relations span { font-size: 13px; color: var(--text-2); }
+.relations a { color: var(--accent); }
+.focus { max-width: 86ch; margin: 0 0 12px; padding: 2px 0 2px 14px; border-left: 2px solid var(--border-strong); }
+.focus-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.focus ul { margin: 2px 0 0; padding-left: 20px; }
+.focus li { margin: 2px 0; }
+.group-next { margin: 14px 0 0; text-align: right; }
+.group-next a { display: inline-block; padding: 6px 14px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); }
+.group-next a:hover { background: var(--surface-3); text-decoration: none; }
+
+.file { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin: 12px 0; overflow: clip; }
+.file-head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--surface-2); position: sticky; top: var(--topbar); z-index: 5; flex-wrap: wrap; }
+.file.open .file-head { border-bottom: 1px solid var(--border); }
+.file-head .toggle { border: 0; background: none; padding: 0 4px; color: var(--text-2); font-size: 13px; }
+.file-head .path { font-family: var(--mono); font-size: 13px; font-weight: 600; flex: 1; min-width: 200px; overflow-wrap: anywhere; cursor: pointer; }
+.file-head .path .dir { color: var(--muted); font-weight: 400; }
+.file-head .status { font-size: 13px; color: var(--muted); }
+.file-head .stat { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.file-head .stat.add { color: var(--add-sign); }
+.file-head .stat.del { color: var(--del-sign); }
+.file-head .ext { font-size: 13px; }
+.file-head label { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-2); padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); cursor: pointer; user-select: none; }
+.file.viewed .file-head label { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); font-weight: 600; }
+.file.viewed .file-head .path { color: var(--muted); font-weight: 400; }
+.file-guide { padding: 7px 14px; font-size: 14px; color: var(--text-2); }
+.file.open .file-guide { border-bottom: 1px solid var(--border); }
+.file.viewed:not(.open) .file-guide { display: none; }
+body.huge .file-body { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+.file-note { padding: 8px 14px; font-size: 14px; color: var(--text-2); }
+.file-note.warn { color: var(--p1); background: var(--p1-bg); }
+.file-findings, .file-annots, .file-talk { padding: 8px 16px 8px 112px; }
+.file-head .talk { font-size: 13px; color: var(--muted); white-space: nowrap; }
+/* 標題列：路徑撐開，「已看」固定在第一列最右邊；其餘標示是一組，寬度不夠時整組換到第二列 */
+.file-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; }
+.hint-row { display: flex; align-items: center; gap: 10px; padding: 7px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+.hint-row .grow { flex: 1; min-width: 0; }
+.plus { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; background: var(--accent); color: var(--surface); font: 700 14px/1 var(--sans); vertical-align: -3px; }
+.round-chip { display: inline-block; padding: 0 8px; border-radius: 4px; background: var(--round); color: var(--round-on); font-size: 13px; font-weight: 700; line-height: 22px; white-space: nowrap; }
+.round-tag { display: inline-block; padding: 0 8px; border-radius: 4px; background: var(--round-bg); color: var(--round-text); font-size: 13px; font-weight: 600; line-height: 22px; white-space: nowrap; }
+.skipped-hunks { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 16px 8px 112px; background: var(--surface-2); border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+.skipped-hunks .grow { flex: 1; min-width: 0; }
+/* 「上次 review 之後的變更」這個檢視：有變更的檔案裡，這一輪沒動的區塊先收起來，下方有一列可以展開 */
+body.since section.file:not(.all-hunks) table.diff tr.rest { display: none; }
+body:not(.since) .skipped-hunks, section.file.all-hunks .skipped-hunks { display: none; }
+
+table.diff { width: 100%; border-collapse: collapse; table-layout: fixed; font: 13px/1.6 var(--mono); tab-size: 4; }
+table.diff col.no { width: 56px; }
+table.diff td { padding: 0; vertical-align: top; }
+table.diff td.no { width: 56px; padding: 0 8px; text-align: right; color: var(--muted); background: var(--surface-2); user-select: none; font-variant-numeric: tabular-nums; }
+table.diff td.code { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 12px; }
+table.diff td.code .sign { display: inline-block; width: 2.4ch; text-align: center; user-select: none; color: var(--muted); font-weight: 700; }
+table.diff tr.add td.code { background: var(--add-bg); }
+table.diff tr.add td.no { background: var(--add-no); }
+table.diff tr.add .sign { color: var(--add-sign); }
+table.diff tr.del td.code { background: var(--del-bg); }
+table.diff tr.del td.no { background: var(--del-no); }
+table.diff tr.del .sign { color: var(--del-sign); }
+table.diff tr.hunk td { background: var(--hunk-bg); color: var(--hunk-text); padding: 3px 12px; font-size: 13px; }
+table.diff tr.mark-note td.no:first-child { box-shadow: inset 2px 0 0 var(--muted); }
+table.diff tr.mark-P2 td.no:first-child { box-shadow: inset 4px 0 0 var(--p2); }
+table.diff tr.mark-P1 td.no:first-child { box-shadow: inset 4px 0 0 var(--p1); }
+table.diff tr.mark-P0 td.no:first-child { box-shadow: inset 4px 0 0 var(--p0-solid); background: var(--p0-bg); color: var(--p0); }
+/* 這一輪改的：上方有一列文字寫明（tr.round-head），行本身在行號與程式碼之間有一條線。左邊那條線留給意見與導讀 */
+table.diff tr.round-new td.no:nth-child(2) { font-weight: 600; color: var(--text); }
+table.diff tr.round-new td.code { box-shadow: inset 3px 0 0 var(--round); }
+table.diff tr.round-head td { position: relative; padding: 3px 12px 3px 124px; background: var(--round-bg); color: var(--round-text); font: 13px/1.7 var(--sans); box-shadow: inset 0 1px 0 var(--round-line); }
+table.diff tr.round-head td::before { content: ''; position: absolute; left: 112px; top: 0; bottom: 0; width: 3px; background: var(--round); }
+table.diff tr.round-head b { margin-right: 10px; font-weight: 700; }
+table.diff tr.note-row td { padding: 8px 16px 10px 112px; background: var(--surface); font-family: var(--sans); border-top: 1px solid var(--surface-3); border-bottom: 1px solid var(--surface-3); }
+
+/* ---- 討論串：一行一串，串內是清單不是卡片。層級靠位置、字級與粗細；顏色只留嚴重度，藍色只代表「可以點」 ---- */
+.thread { display: flex; flex-direction: column; max-width: 860px; color: var(--text); font: 14px/1.65 var(--sans); }
+.titem { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 0 10px 14px; border-left: 2px solid var(--border); }
+.thread > .titem + .titem { box-shadow: inset 0 1px 0 var(--surface-3); }
+.titem.flash { outline: 2px solid var(--accent); outline-offset: 2px; }
+.titem.finding.todo { padding-left: 13px; border-left-width: 3px; border-left-color: var(--p2); }
+.titem.finding.todo.P0 { border-left-color: var(--p0); }
+.titem.finding.todo.P1 { border-left-color: var(--p1); }
+.titem.oneline { flex-direction: row; align-items: center; gap: 6px; padding-top: 6px; padding-bottom: 6px; font-size: 13px; color: var(--muted); }
+.titem.oneline .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--text-2); }
+.tmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-height: 22px; font-size: 13px; color: var(--muted); }
+.tmeta b { font-weight: 600; color: var(--text); }
+.tmeta .spacer, .composer-foot .spacer { flex: 1; }
+.titem .fid { font-family: var(--mono); }
+.trow { display: flex; align-items: center; gap: 4px; }
+.ttitle { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.ttext { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ttext.quiet { color: var(--muted); }
+.tsuggest { color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.annot .ttext { color: var(--text-2); }
+.tlabel { margin-right: 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.titem.actions { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 0 0 6px; border-left-color: transparent; font-size: 13px; color: var(--muted); }
+.thread > .titem + .titem.actions { box-shadow: none; }
+/* 自己還沒送出的留言用虛線，和已經在 Gitea 上的留言分開 */
+.titem.draft { border-left-style: dashed; border-left-color: var(--border-strong); }
+body.hide-notes .annot, body.hide-notes .file-annots, body.hide-notes tr.only-notes { display: none; }
+body.hide-notes table.diff tr.mark-note td.no:first-child { box-shadow: none; }
+body.hide-notes .thread > .annot + .titem { box-shadow: none; }
+/* ---- 按鈕：實心的主要按鈕一個畫面只有一顆（右上角的「送出 review」與送出視窗裡的送出） ---- */
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+button.primary:hover { background: var(--accent); filter: brightness(1.12); }
+button.link { height: 26px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--accent); font-size: 14px; font-weight: 400; }
+button.link:hover { background: var(--accent-bg); }
+button.link.strong { font-weight: 600; }
+button.link.plain { color: var(--accent); }
+button.link.plain:hover { background: var(--accent-bg); }
+button.outline { height: 30px; padding: 0 12px; border: 1px solid var(--accent); border-radius: 6px; background: var(--surface); color: var(--accent); font-size: 14px; font-weight: 600; }
+button.outline:hover { background: var(--accent-bg); }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+button.primary:disabled { background: var(--surface-3); border-color: var(--border-strong); color: var(--muted); opacity: 1; }
+/* 切換檢視（例如第 2 輪的「上次 review 之後的變更／全部變更」）：選中的那一格用深色，不用藍色 */
+.seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 4px 12px; }
+.seg button + button { border-left: 1px solid var(--border-strong); }
+.seg button[aria-pressed="true"] { background: var(--text); color: var(--surface); font-weight: 600; }
+/* ---- 留言的輸入框 ---- */
+.composer { display: flex; flex-direction: column; gap: 8px; }
+.composer textarea { display: block; width: 100%; min-height: 64px; resize: vertical; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: 14px/1.65 var(--sans); }
+.composer textarea:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.composer textarea::placeholder { color: var(--muted); }
+.composer-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.composer-foot .error { color: var(--p0); }
+/* ---- 連上本機服務時才有的部分：既有留言、草稿、忽略、送出 ---- */
+.card .thread { max-width: none; }
+.draft-note { font-size: 13px; color: var(--text-2); }
+body.live table.diff tr[data-kind] td.no { cursor: pointer; }
+body.live table.diff tr[data-kind]:hover td.no { color: var(--text); }
+/* 游標移到某一行上，行號旁出現 +，表示可以在那一行留言（頁面上另有文字說明與圖例） */
+body.live table.diff tr[data-kind]:hover td.no:nth-child(2)::before { content: '+'; float: left; width: 18px; height: 18px; margin-top: 2px; border-radius: 4px; background: var(--accent); color: var(--surface); font: 700 14px/18px var(--sans); text-align: center; }
+body.live table.diff tr[data-kind] td.no:hover { background: var(--accent-bg); color: var(--accent); }
+details.old-comments { padding: 4px 16px 6px 112px; }
+details.old-comments > summary { cursor: pointer; font-size: 13px; color: var(--text-2); padding: 4px 0; }
+.connect { border-color: var(--border-strong); }
+.connect label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.connect input { display: block; width: 100%; height: 36px; padding: 0 10px; font: 14px/1.5 var(--sans); color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; }
+.connect input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.connect .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.connect .row input { flex: 1; min-width: 240px; }
+.connect .row button { height: 36px; padding: 0 16px; border-radius: 8px; font-size: 14px; }
+.msg { margin-top: 8px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.error { color: var(--p0); }
+.msg.good { color: var(--ok); }
+.comment-list a { display: grid; grid-template-columns: 14ch 7.5em minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 5px 6px; border-radius: 6px; color: var(--text); }
+.comment-list a:hover { background: var(--surface-3); text-decoration: none; }
+.comment-list .where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.comment-list .state { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.comment-list .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font: 14px/1.65 var(--sans); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); }
+dialog[open] { display: flex; flex-direction: column; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+.dialog-body { display: flex; flex-direction: column; gap: 16px; padding: 24px 24px 4px; overflow: auto; }
+dialog h2 { margin: 0; font-size: 20px; font-weight: 600; }
+dialog .lead { margin: 0; color: var(--text-2); }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.flabel { font-size: 13px; font-weight: 600; color: var(--muted); }
+.events { display: flex; flex-direction: column; gap: 8px; }
+.events label { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.events label:hover { background: var(--surface-2); }
+.events label.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.events input { margin: 0; accent-color: var(--accent); }
+.events b { font-weight: 600; }
+.events span { color: var(--muted); }
+.send-list { margin: 0; padding: 0; list-style: none; max-height: 30vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.send-list li { display: flex; align-items: baseline; gap: 12px; padding: 7px 12px; }
+.send-list li + li { box-shadow: inset 0 1px 0 var(--surface-3); }
+.send-list .where { flex: none; width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.send-list .text { flex: 1; min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text); font: inherit; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.send-list .text:hover { background: transparent; }
+.send-list li.open .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.send-list .tag { flex: none; font-size: 13px; color: var(--muted); }
+.dialog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 24px 20px; }
+.dialog-actions button { height: 36px; padding: 0 16px; border-radius: 8px; font-size: 14px; }
+.help { color: var(--muted); font-size: 13px; margin-top: 34px; }
+kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); color: var(--text); }
+/* ---- 圖例：使用者想看時才打開；每一項都是頁面上真正的樣子，旁邊寫它的意思 ---- */
+.legend { position: fixed; top: calc(var(--topbar) + 8px); right: 16px; z-index: 40; width: min(350px, calc(100vw - 32px)); max-height: calc(100vh - var(--topbar) - 24px); overflow: auto; padding: 16px 18px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); font-size: 13px; line-height: 1.6; }
+.legend h2 { display: flex; align-items: center; margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.legend h2 button { margin-left: auto; }
+.legend dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 12px; align-items: center; margin: 0; }
+.legend dt, .legend dd { margin: 0; }
+.legend .signs span { display: inline-block; padding: 0 7px; font: 700 13px/20px var(--mono); }
+.legend .signs .add { background: var(--add-bg); color: var(--add-sign); }
+.legend .signs .del { background: var(--del-bg); color: var(--del-sign); }
+.legend .dash { display: inline-block; height: 20px; margin-right: 6px; border-left: 2px dashed var(--border-strong); vertical-align: middle; }
+/* ---- 第 2 輪起：最上面先回答「這次改了什麼」 ---- */
+.round-summary .lead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.round-summary .lead b { flex: 1; min-width: 200px; font-size: 16px; font-weight: 600; }
+.round-summary .lead .when { font-size: 13px; color: var(--muted); }
+.round-summary .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); gap: 8px 16px; margin-top: 10px; }
+.round-summary .facts b { display: block; font-size: 13px; font-weight: 600; color: var(--round-text); }
+.round-summary .facts .quiet b { color: var(--muted); }
+.round-summary .mine { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--surface-3); }
+.round-summary .mine .grow { flex: 1; min-width: 200px; }
+.old-comments-open { padding: 10px 16px 12px 112px; border-bottom: 1px solid var(--surface-3); }
+.old-comments-open > .tlabel { display: block; margin: 0 0 4px; }
+
+@media (max-width: 1320px) { body.live .progress { display: none; } }
+@media (max-width: 1120px) { body.live #topbar .tools > a.pr-link { display: none; } }
+@media (max-width: 1400px) { .file-meta { order: 4; flex-basis: 100%; padding-left: 26px; } }
+@media (max-width: 1200px) { #main { padding: 18px 16px 120px; } }
+@media (max-width: 900px) {
+  #layout { grid-template-columns: minmax(0, 1fr); }
+  #sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  #main { padding: 16px 12px 80px; }
+  /* 窄視窗：頂列的工具放不下就換行，並且跟著頁面捲走（固定住會佔掉四分之一的畫面）；
+     「送出 review」改成固定在右下角，讀到哪裡都按得到。 */
+  #topbar { position: static; height: auto; flex-wrap: wrap; row-gap: 6px; padding: 8px 12px; }
+  #topbar .title { flex-basis: 100%; }
+  #topbar .title b { white-space: normal; }
+  #topbar .tools { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
+  body.live #topbar .tools .primary { position: fixed; right: 12px; bottom: 12px; z-index: 30; min-height: 44px; padding: 0 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
+  #progress-bar { display: none; }
+  .file-head { top: 0; }
+  html { scroll-padding-top: 12px; }
+  .legend { top: 8px; max-height: calc(100vh - 80px); }
+  table.diff tr.note-row td, .file-findings, .file-annots, .file-talk, details.old-comments, .old-comments-open, .skipped-hunks { padding-left: 14px; }
+  table.diff tr.round-head td { padding-left: 14px; }
+  table.diff tr.round-head td::before { left: 0; }
+}
+@media (max-width: 600px) {
+  table.diff col.no, table.diff td.no { width: 40px; padding: 0 4px; }
+  /* 窄視窗唯一小於 13px 的地方：程式碼，為了一行多放幾個字元。說明文字與按鈕維持 13px 以上。 */
+  table.diff { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div id="layout">
+  <nav id="sidebar" aria-label="閱讀順序"></nav>
+  <main id="main"></main>
+</div>
+<script id="review-data" type="application/json">__REVIEW_DATA__</script>
+<script>
+(function () {
+  'use strict';
+
+  var data = JSON.parse(document.getElementById('review-data').textContent);
+  var STATUS = { A: '新增', M: '修改', D: '刪除', R: '改名', C: '複製', T: '類型變更' };
+  var SKIPPED = { binary: '二進位檔，沒有納入審查。', excluded: '產物、lock 檔或圖片等資源，沒有納入審查。' };
+  var EMPTY_DIFF = { A: '新增的空檔案。', D: '刪除的空檔案。', M: '沒有內容變更（只有改名或權限變更）。' };
+  var PR_STATE = { merged: '已合併', closed: '已關閉' };
+  var ROUND_CHANGE = { 'new': '這一輪才出現的變更', changed: '這一輪有變更' };
+  // 嚴重度後面一律帶白話：第一次看到的人不用先知道 P0／P1／P2 是什麼。
+  var SEV_WORD = { P0: '必修', P1: '應修', P2: '建議' };
+  function sevLabel(level) { return SEV_WORD[level] ? level + ' ' + SEV_WORD[level] : level; }
+  var THEME_LABEL = { auto: '主題：跟隨系統', light: '主題：淺色', dark: '主題：深色' };
+  var THEME_KEY = 'forge-pr-review:theme';
+  var MARK_RANK = { P0: 0, P1: 1, P2: 2, note: 3 };
+  var LARGE_FILE_LINES = 600;
+  var HUGE_PAGE_ROWS = 8000;
+  // 使用者主動跳到某個位置時用滑順的捲動；系統設定「減少動態效果」時維持直接跳。
+  // 收合、展開時把畫面釘在原地（keepInPlace）則一律瞬間完成，不然畫面會晃一下。
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SCROLL = reduceMotion ? 'auto' : 'smooth';
+
+  function h(tag, props, children) {
+    var node = document.createElement(tag);
+    if (props) {
+      Object.keys(props).forEach(function (key) {
+        var value = props[key];
+        if (value == null || value === false) return;
+        if (key === 'class') node.className = value;
+        else if (key === 'text') node.textContent = value;
+        else if (key === 'on') Object.keys(value).forEach(function (ev) { node.addEventListener(ev, value[ev]); });
+        else node.setAttribute(key, value === true ? '' : value);
+      });
+    }
+    appendChildren(node, children);
+    return node;
+  }
+  function appendChildren(node, child) {
+    if (child == null || child === false) return;
+    if (Array.isArray(child)) { child.forEach(function (item) { appendChildren(node, item); }); return; }
+    node.append(child);
+  }
+
+  function richText(text) {
+    var frag = document.createDocumentFragment();
+    String(text || '').split(/```[\w-]*\n?([\s\S]*?)```/).forEach(function (part, index) {
+      if (index % 2 === 1) { frag.append(h('pre', { text: part.replace(/\n$/, '') })); return; }
+      part.split(/`([^`\n]+)`/).forEach(function (piece, i) {
+        if (!piece) return;
+        frag.append(i % 2 === 1 ? h('code', { text: piece }) : piece);
+      });
+    });
+    return frag;
+  }
+
+  function safeUrl(url) { return /^https?:\/\//i.test(url || '') ? url : ''; }
+  function shortSha(sha) { return (sha || '').slice(0, 8); }
+
+  var analysis = data.analysis;
+  var filesByPath = {};
+  var totalRows = 0;
+  data.files.forEach(function (file) {
+    filesByPath[file.path] = file;
+    file.hunks.forEach(function (hunk) { totalRows += hunk.lines.length; });
+  });
+  // 只有很大的 PR 才延後排版：一般大小的 PR 讓版面一次算好，捲軸與位置才不會在閱讀途中變動。
+  if (totalRows > HUGE_PAGE_ROWS) document.body.classList.add('huge');
+
+  var findings = analysis ? analysis.findings : [];
+  var annotations = analysis && analysis.annotations ? analysis.annotations : [];
+  var fileNotes = analysis && analysis.file_notes ? analysis.file_notes : {};
+  var findingsByPath = {};
+  findings.forEach(function (finding) {
+    if (finding.anchor === 'general') return;
+    (findingsByPath[finding.path] = findingsByPath[finding.path] || []).push(finding);
+  });
+  var notesByPath = {};
+  annotations.forEach(function (note) {
+    (notesByPath[note.path] = notesByPath[note.path] || []).push(note);
+  });
+  var groupIndex = {};
+  data.groups.forEach(function (group, index) { groupIndex[group.id] = index + 1; });
+
+  // ---- 即時狀態 ---------------------------------------------------------------------------
+  // 由本機的 review 服務開啟時 data.live 才有值：既有留言、草稿、忽略的意見、連線狀態。
+  // 直接開啟 HTML 檔時 live 是 null，頁面維持唯讀。
+  var live = data.live || null;
+  var draftsByPath = {}, commentsByPath = {}, draftByFinding = {}, commentById = {};
+  function indexLive() {
+    draftsByPath = {}; commentsByPath = {}; draftByFinding = {}; commentById = {};
+    if (!live) return;
+    live.drafts.forEach(function (draft) {
+      if (draft.finding) draftByFinding[draft.finding] = draft;
+      if (draft.line != null) (draftsByPath[draft.path] = draftsByPath[draft.path] || []).push(draft);
+    });
+    live.comments.forEach(function (comment) {
+      (commentsByPath[comment.path] = commentsByPath[comment.path] || []).push(comment);
+      commentById[comment.id] = comment;
+    });
+  }
+  indexLive();
+  if (live) document.body.classList.add('live');
+
+  function api(path, payload) {
+    return fetch(path, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Forge-Request': '1' },
+      body: JSON.stringify(payload || {})
+    }).then(function (response) { return response.json(); }).catch(function () {
+      return { ok: false, message: '連不上本機的 review 服務。請回到對話，重新開啟這個 PR 的 review 頁面。' };
+    });
+  }
+  function decisionFor(finding) {
+    var decision = live && live.decisions[finding.id];
+    if (!decision) return null;
+    // 同一輪重新分析後編號可能換人用：標題或分析時間對得上才算同一則。
+    return decision.title === finding.title || decision.analyzed_at === data.round.analyzed_at ? decision : null;
+  }
+
+  var STORE_KEY = 'forge-pr-review:' + data.storage_key;
+  var viewedMap = {};
+  try { viewedMap = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (err) { viewedMap = {}; }
+  if (live) {
+    // 第一次由服務開啟時，把先前存在瀏覽器裡的「已看」搬到服務那邊，之後換瀏覽器也還在。
+    if (!Object.keys(live.viewed).length) {
+      Object.keys(viewedMap).forEach(function (path) {
+        live.viewed[path] = viewedMap[path];
+        api('/api/viewed', { path: path, signature: viewedMap[path] });
+      });
+    }
+    viewedMap = live.viewed;
+  }
+  function isViewed(file) { return viewedMap[file.path] === file.signature; }
+  function setViewed(file, on) {
+    if (on) viewedMap[file.path] = file.signature; else delete viewedMap[file.path];
+    if (live) { api('/api/viewed', { path: file.path, signature: on ? file.signature : null }); return; }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(viewedMap)); } catch (err) { /* 無法儲存時只影響本次瀏覽 */ }
+  }
+
+  var fileViews = {};
+  var groupViews = {};
+  // changed：只看上一輪之後的變更。第 2 輪起預設開著，因為那是這一輪最想知道的事。
+  var filters = { findings: false, changed: !!(data.round && data.round.changes) };
+  // 只出現一次的提示：使用者按過「知道了」的由服務記在電腦上。
+  var hintsSeen = {};
+  (data.hints_seen || []).forEach(function (id) { hintsSeen[id] = true; });
+  var hintPlaced = false;
+  // 這個檔案裡「這一輪改的行」有幾行：服務給的是上一輪到現在有變的新檔行號，只算其中屬於這個 PR 新增的行。
+  function countRoundLines(file) {
+    var ranges = file.round_lines || [];
+    if (!ranges.length) return 0;
+    var count = 0;
+    file.hunks.forEach(function (hunk) {
+      hunk.lines.forEach(function (line) {
+        if (line.t === 'add' && ranges.some(function (range) { return line['new'] >= range[0] && line['new'] <= range[1]; })) count += 1;
+      });
+    });
+    return count;
+  }
+
+  // ---- 版面變動時把畫面釘在原地 ----------------------------------------------------------
+  // 收合、展開、篩選都會改變頁面高度。瀏覽器預設讓捲動位置不動，結果是畫面上的內容整段換掉。
+  // 這裡改成：記住某個節點在畫面上的位置，版面變動後把它捲回同一個位置。
+  function topOffset() {
+    var bar = document.getElementById('topbar');
+    return window.getComputedStyle(bar).position === 'sticky' ? bar.offsetHeight : 0;
+  }
+  function keepInPlace(node, mutate) {
+    if (!node || node.offsetParent === null) { mutate(); return; }
+    var before = node.getBoundingClientRect().top;
+    mutate();
+    function settle() {
+      if (node.offsetParent === null) return;
+      var delta = node.getBoundingClientRect().top - before;
+      if (Math.abs(delta) >= 1) window.scrollBy(0, delta);
+    }
+    settle();
+    if (window.requestAnimationFrame) window.requestAnimationFrame(settle);
+  }
+  function orderedViews() {
+    var out = [];
+    data.groups.forEach(function (group) {
+      group.files.forEach(function (path) { if (fileViews[path]) out.push(fileViews[path]); });
+    });
+    return out;
+  }
+  // 目前正在看的檔案：由上往下第一個還有內容留在畫面上的檔案。
+  function currentView(predicate) {
+    var limit = topOffset() + 1;
+    var views = orderedViews();
+    for (var i = 0; i < views.length; i += 1) {
+      var view = views[i];
+      if (view.section.offsetParent === null) continue;
+      var rect = view.section.getBoundingClientRect();
+      if (rect.bottom <= limit) continue;
+      if (rect.top >= window.innerHeight) return null;
+      if (!predicate || predicate(view)) return view;
+    }
+    return null;
+  }
+
+  function severityCounts(list) {
+    var counts = { P0: 0, P1: 0, P2: 0 };
+    list.forEach(function (finding) { counts[finding.severity] += 1; });
+    return counts;
+  }
+  function severityPills(list) {
+    var counts = severityCounts(list);
+    return ['P0', 'P1', 'P2'].filter(function (level) { return counts[level]; }).map(function (level) {
+      return h('span', { class: 'sev ' + level, text: sevLabel(level) + ' ' + counts[level] });
+    });
+  }
+  function lineLabel(item) {
+    if (item.line == null) return '';
+    var side = item.side === 'old' ? '舊檔' : '';
+    var range = item.end_line ? item.line + '–' + item.end_line : String(item.line);
+    return side + '第 ' + range + ' 行';
+  }
+
+  var SUBMIT_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘ Enter' : 'Ctrl Enter';
+  // 把幾個標示用「·」串成一行；空的略過。字串會包成 span，節點照原樣放。
+  function dotted(parts) {
+    var out = [];
+    parts.forEach(function (part) {
+      if (!part) return;
+      if (out.length) out.push(h('span', { 'aria-hidden': 'true', text: '·' }));
+      out.push(typeof part === 'string' ? h('span', { text: part }) : part);
+    });
+    return out;
+  }
+  function shortDate(iso) {
+    var match = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || '');
+    if (!match) return '';
+    var year = Number(match[1]) === new Date().getFullYear() ? '' : match[1] + ' 年 ';
+    return year + Number(match[2]) + ' 月 ' + Number(match[3]) + ' 日';
+  }
+
+  function findingCard(finding) {
+    var where = finding.anchor === 'line' ? lineLabel(finding)
+      : finding.anchor === 'file' ? (finding.line != null ? lineLabel(finding) + '（不在 diff 內）' : '整個檔案')
+      : (finding.claimed_path ? finding.claimed_path : '整體');
+    var decision = decisionFor(finding);
+    var label = finding.title || finding.body.split('\n')[0];
+    var fid = h('span', { class: 'fid', text: finding.id });
+    // 處理過的意見（忽略、採用、送出）收成一行：內容已經不需要再讀一次。
+    if (decision && decision.status === 'ignored') {
+      return h('div', { class: 'titem finding oneline', id: 'finding-' + finding.id }, [
+        dotted(['已忽略', fid]),
+        h('span', { class: 'what' }, richText(label)),
+        h('button', { class: 'link', text: '復原', on: { click: function (ev) {
+          api('/api/decision', { id: finding.id, status: 'open' }).then(function (res) { applyResult(res, ev.target); });
+        } } })
+      ]);
+    }
+    var state = !live ? '' : decision && decision.status === 'sent' ? '已送出'
+      : draftByFinding[finding.id] ? '已採用，在待送出的留言裡' : '';
+    if (state) {
+      return h('div', { class: 'titem finding oneline', id: 'finding-' + finding.id }, [
+        h('span', { class: 'sev ' + finding.severity, text: sevLabel(finding.severity) }),
+        fid,
+        h('span', { class: 'what' }, richText(label)),
+        h('span', { text: state })
+      ]);
+    }
+    var actions = live ? [
+      h('button', { class: 'link strong', text: '採用成留言', on: { click: function (ev) { adoptFinding(finding, ev.target); } } }),
+      h('button', { class: 'link plain', text: '忽略', on: { click: function (ev) {
+        api('/api/decision', { id: finding.id, status: 'ignored', title: finding.title, analyzed_at: data.round.analyzed_at })
+          .then(function (res) { applyResult(res, ev.target); });
+      } } })
+    ] : null;
+    return h('div', { class: 'titem finding todo ' + finding.severity, id: 'finding-' + finding.id }, [
+      h('div', { class: 'tmeta' }, [h('span', { class: 'sev ' + finding.severity, text: sevLabel(finding.severity) })]
+        .concat(dotted(['AI 意見', fid, where]))),
+      h('div', { class: 'trow' }, [h('div', { class: 'ttitle' }, finding.title ? richText(finding.title) : null), actions]),
+      finding.body ? h('div', { class: 'ttext' }, richText(finding.body)) : null,
+      finding.suggestion ? h('div', { class: 'tsuggest' }, ['建議：', richText(finding.suggestion)]) : null
+    ]);
+  }
+  function adoptFinding(finding, button) {
+    var file = filesByPath[finding.path];
+    var line = null;
+    if (finding.anchor === 'line' && file) {
+      // Gitea 的行內留言只能掛在一行上：範圍意見掛在最後一行，和頁面上顯示的位置一致。
+      var lastLine = finding.end_line && file.hunks.some(function (hunk) {
+        return hunk.lines.some(function (item) { return (finding.side === 'old' ? item.old : item['new']) === finding.end_line; });
+      });
+      line = lastLine ? finding.end_line : finding.line;
+    }
+    var text = [finding.title, finding.body, finding.suggestion ? '建議：' + finding.suggestion : '']
+      .filter(Boolean).join('\n\n');
+    api('/api/draft', { path: finding.path || '', side: finding.side, line: line, body: text, finding: finding.id })
+      .then(function (res) { applyResult(res, button); });
+  }
+  function whereLabel(item) {
+    if (!item.path) return '整體';
+    var name = item.path.split('/').pop();
+    return item.line != null ? name + ':' + (item.side === 'old' ? '舊' : '') + item.line : name;
+  }
+  // 留言的輸入框：新的留言、修改草稿與整體留言共用。⌘／Ctrl + Enter 送出；內容沒有改過時 Esc 取消。
+  function composer(options) {
+    var initialText = options.value || '';
+    var area = h('textarea', { rows: String(options.rows || 2), placeholder: options.placeholder || '', 'aria-label': options.label });
+    area.value = initialText;
+    var message = h('span', { class: 'error' });
+    var busy = false;
+    function submit() {
+      if (busy) return;
+      if (!area.value.trim()) { area.focus(); return; }
+      busy = true;
+      message.textContent = '';
+      options.onSubmit(area.value, function (text) { busy = false; message.textContent = text || ''; });
+    }
+    area.addEventListener('keydown', function (ev) {
+      if (ev.isComposing) return;  // 輸入法選字時的 Enter 與 Esc 是給輸入法的
+      if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); submit(); }
+      else if (ev.key === 'Escape' && options.onCancel && area.value === initialText) { ev.preventDefault(); options.onCancel(); }
+    });
+    return h('div', { class: 'composer' }, [
+      area,
+      h('div', { class: 'composer-foot' }, [
+        h('span', { text: SUBMIT_KEY + ' ' + options.verb + (options.onCancel ? '，Esc 取消' : '') }),
+        message,
+        h('span', { class: 'spacer' }),
+        options.onCancel ? h('button', { class: 'link plain', text: '取消', on: { click: options.onCancel } }) : null,
+        h('button', { class: 'outline', text: options.submitLabel, on: { click: submit } })
+      ])
+    ]);
+  }
+  function draftCard(draft) {
+    var user = live.connection.user;
+    var item = h('div', { class: 'titem draft', id: 'draft-' + draft.id });
+    function show() {
+      item.textContent = '';
+      appendChildren(item, [
+        h('div', { class: 'tmeta' }, dotted([
+          h('b', { text: user ? user + '（你）' : '你' }),
+          h('b', { text: '待送出' }),
+          draft.reply_to != null && commentById[draft.reply_to] ? '回覆 ' + (commentById[draft.reply_to].user || '這則留言') : null,
+          draft.finding ? '採用自 ' + draft.finding + '，送出時結尾會加上「AI 輔助審查」' : null,
+          draft.valid ? null : '這一行已經不在目前的 diff 裡，送出時會略過這則'
+        ]).concat([
+          h('span', { class: 'spacer' }),
+          h('button', { class: 'link', text: '修改', on: { click: edit } }),
+          h('button', { class: 'link plain', text: '刪除', on: { click: function () {
+            api('/api/draft/delete', { id: draft.id }).then(function (res) { applyResult(res, item); });
+          } } })
+        ])),
+        h('div', { class: 'ttext' }, richText(draft.body))
+      ]);
+    }
+    function edit() {
+      var box = composer({
+        label: '留言內容', value: draft.body, verb: '儲存', submitLabel: '儲存', onCancel: show,
+        onSubmit: function (text, fail) {
+          api('/api/draft', { id: draft.id, body: text }).then(function (res) {
+            if (res.ok) applyResult(res, item); else fail(res.message || '沒有儲存');
+          });
+        }
+      });
+      item.textContent = '';
+      item.append(box);
+      box.querySelector('textarea').focus();
+    }
+    show();
+    return item;
+  }
+  function commentCard(comment) {
+    return h('div', { class: 'titem gcomment', id: 'gc-' + comment.id }, [
+      h('div', { class: 'tmeta' }, dotted([
+        h('b', { text: (comment.user || '（未知）') + (comment.mine ? '（你）' : '') }),
+        shortDate(comment.created_at),
+        comment.resolved ? '已解決' : null,
+        comment.anchor !== 'line' ? '留言時的那一行已經改了' : null
+      ]).concat([
+        h('span', { class: 'spacer' }),
+        safeUrl(comment.url) ? h('a', { href: comment.url, target: '_blank', rel: 'noopener noreferrer', text: '在 Gitea 開啟' }) : null
+      ])),
+      h('div', { class: 'ttext' + (comment.resolved ? ' quiet' : '') }, richText(comment.body))
+    ]);
+  }
+  // 一行上的留言後面接一列動作：回覆（存成待送出的留言，和其他草稿一起送）與解決討論（按了就更新到 Gitea）。
+  // comments 是同一行上的留言；reply 是那一行在目前 diff 裡的位置，留言時的那一行已經變動時沒有，只能解決。
+  function threadActions(comments, reply) {
+    if (!live || !comments.length) return null;
+    var first = comments[0];
+    var resolved = comments.every(function (comment) { return comment.resolved; });
+    var ready = live.connection.ok && live.connection.has_token;
+    var item = h('div', { class: 'titem actions' });
+    if (reply) {
+      item.append(h('button', { class: 'link strong', text: '回覆', on: { click: function () {
+        openEditor(reply.row, reply.path, first.side, first.line, first);
+      } } }));
+    }
+    if (ready && live.connection.can_resolve === true) {
+      var button = h('button', {
+        class: 'link plain', text: resolved ? '重新開啟討論' : '解決討論', title: '按下去會立刻更新到 Gitea，可以再改回來'
+      });
+      button.addEventListener('click', function () {
+        button.disabled = true;
+        api('/api/resolve', { id: first.id, resolved: !resolved }).then(function (res) {
+          button.disabled = false;
+          applyResult(res, item);
+        });
+      });
+      item.append(button);
+    }
+    return item.childNodes.length ? item : null;
+  }
+  function openEditor(row, path, side, line, replyTo) {
+    // 這一行下面已經有討論串時，輸入框接在同一串的最後面；沒有的話才新開一串。
+    var next = row.nextSibling;
+    var threadRow = next && next.classList && next.classList.contains('note-row') ? next : null;
+    var open = threadRow && threadRow.querySelector('.titem.new textarea');
+    if (open) { open.focus(); return; }
+    var created = !threadRow;
+    if (created) {
+      threadRow = h('tr', { class: 'note-row' }, h('td', { colspan: '3' }, h('div', { class: 'thread' })));
+      row.after(threadRow);
+    }
+    // 只有導讀的那一列在「隱藏導讀註解」時整列不顯示；要寫留言時先讓它出現。
+    var onlyNotes = threadRow.classList.contains('only-notes');
+    threadRow.classList.remove('only-notes');
+    var item = h('div', { class: 'titem new' });
+    function close() {
+      if (created) { threadRow.remove(); return; }
+      item.remove();
+      if (onlyNotes) threadRow.classList.add('only-notes');
+    }
+    var who = replyTo ? (replyTo.user || '這則留言') : '';
+    item.append(composer({
+      label: replyTo ? '回覆 ' + who : '新的留言', placeholder: replyTo ? '回覆 ' + who + '…' : '寫下你的留言…',
+      verb: '加入', submitLabel: '加入待送出', onCancel: close,
+      onSubmit: function (text, fail) {
+        var draft = { path: path, side: side, line: line, body: text };
+        if (replyTo) draft.reply_to = replyTo.id;
+        api('/api/draft', draft).then(function (res) {
+          if (res.ok) applyResult(res, row); else fail(res.message || '沒有儲存');
+        });
+      }
+    }));
+    threadRow.querySelector('.thread').append(item);
+    item.querySelector('textarea').focus();
+  }
+
+  function noteCard(note) {
+    var range = note.anchor === 'line' && note.end_line ? '（' + lineLabel(note) + '）' : '';
+    return h('div', { class: 'titem annot', id: 'note-' + note.id },
+      h('div', { class: 'ttext' }, [h('span', { class: 'tlabel', text: '導讀' + range }), richText(note.text)]));
+  }
+
+  function buildDiff(file, list, notes, roundNew) {
+    var presentNew = {}, presentOld = {};
+    file.hunks.forEach(function (hunk) {
+      hunk.lines.forEach(function (line) {
+        if (line['new'] != null) presentNew[line['new']] = true;
+        if (line.old != null) presentOld[line.old] = true;
+      });
+    });
+    var attach = {};
+    var marks = {};
+    function place(item, kind) {
+      if (item.anchor !== 'line') return;
+      var present = item.side === 'old' ? presentOld : presentNew;
+      var target = item.end_line && present[item.end_line] ? item.end_line : item.line;
+      var key = item.side + ':' + target;
+      var slot = attach[key] = attach[key] || { comments: [], notes: [], findings: [], drafts: [] };
+      slot[kind].push(item);
+      if (kind === 'comments' || kind === 'drafts') return;
+      var mark = kind === 'notes' ? 'note' : item.severity;
+      for (var n = item.line; n <= target; n += 1) {
+        var markKey = item.side + ':' + n;
+        if (!marks[markKey] || MARK_RANK[mark] < MARK_RANK[marks[markKey]]) marks[markKey] = mark;
+      }
+    }
+    notes.forEach(function (note) { place(note, 'notes'); });
+    list.forEach(function (finding) { place(finding, 'findings'); });
+    (commentsByPath[file.path] || []).forEach(function (comment) { place(comment, 'comments'); });
+    (draftsByPath[file.path] || []).forEach(function (draft) {
+      if (draft.valid) place({ anchor: 'line', side: draft.side, line: draft.line, draft: draft }, 'drafts');
+    });
+
+    var body = h('tbody');
+    var sign = { ctx: ' ', add: '+', del: '-' };
+    var restHunks = 0;
+    file.hunks.forEach(function (hunk) {
+      // 有變更的檔案裡，這一輪沒有動到的區塊標成 rest；「上次 review 之後的變更」這個檢視會把它們收起來。
+      var touched = hunk.lines.some(function (line) { return line.t === 'add' && roundNew[line['new']]; });
+      var rest = file.round_change === 'changed' && !touched ? ' rest' : '';
+      if (rest) restHunks += 1;
+      body.append(h('tr', { class: 'hunk' + rest }, h('td', {
+        colspan: '3',
+        text: '@@ 舊 ' + hunk.old_start + ' / 新 ' + hunk.new_start + ' @@' + (hunk.context ? '  ' + hunk.context : '')
+      })));
+      var delStart = null;  // 緊接在前面的一串刪除行的第一列：標題列要放在「刪掉舊的、換成新的」這一對的上面
+      var inRun = false;
+      hunk.lines.forEach(function (line, lineIndex) {
+        var onNew = line['new'] != null ? 'new:' + line['new'] : null;
+        var onOld = line.old != null ? 'old:' + line.old : null;
+        var mark = (line.t !== 'del' && onNew && marks[onNew]) || (line.t !== 'add' && onOld && marks[onOld]) || '';
+        var fresh = line.t === 'add' && roundNew[line['new']];
+        var codeRow = h('tr', { class: line.t + rest + (mark ? ' mark-' + mark : '') + (fresh ? ' round-new' : ''), 'data-kind': line.t, 'data-old': line.old, 'data-new': line['new'] }, [
+          h('td', { class: 'no', text: line.old == null ? '' : String(line.old) }),
+          h('td', { class: 'no', text: line['new'] == null ? '' : String(line['new']) }),
+          h('td', { class: 'code' }, [h('span', { class: 'sign', text: sign[line.t] }), line.text])
+        ]);
+        body.append(codeRow);
+        if (line.t === 'del' && !delStart) delStart = codeRow;
+        if (fresh && !inRun) {
+          // 這一輪改的每一段上面都有一列文字，直接寫明是什麼，不用猜記號的意思。
+          var lastLine = line['new'];
+          for (var k = lineIndex + 1; k < hunk.lines.length; k += 1) {
+            var following = hunk.lines[k];
+            if (following.t === 'add' && roundNew[following['new']]) lastLine = following['new']; else break;
+          }
+          (delStart || codeRow).before(h('tr', { class: 'round-head' }, h('td', { colspan: '3' }, [
+            h('b', { text: '這一輪改的' }),
+            (lastLine === line['new'] ? '第 ' + lastLine + ' 行' : '第 ' + line['new'] + '–' + lastLine + ' 行') + ' · 你上一輪看過之後才改成這樣'
+          ])));
+        }
+        inRun = !!fresh;
+        if (line.t !== 'del') delStart = null;
+        var rowComments = [], rowNotes = [], rowFindings = [], rowDrafts = [];
+        [line.t !== 'del' && onNew, line.t !== 'add' && onOld].forEach(function (key) {
+          if (!key || !attach[key]) return;
+          rowComments = rowComments.concat(attach[key].comments);
+          rowNotes = rowNotes.concat(attach[key].notes);
+          rowFindings = rowFindings.concat(attach[key].findings);
+          rowDrafts = rowDrafts.concat(attach[key].drafts);
+        });
+        if (rowComments.length || rowNotes.length || rowFindings.length || rowDrafts.length) {
+          var onlyNotes = !rowComments.length && !rowFindings.length && !rowDrafts.length;
+          // 順序：導讀 → AI 的意見 → 大家的留言 → 自己還沒送出的 → 可以做的事（回覆、解決討論）
+          body.append(h('tr', { class: 'note-row' + rest + (onlyNotes ? ' only-notes' : '') }, h('td', { colspan: '3' },
+            h('div', { class: 'thread' }, rowNotes.map(noteCard).concat(rowFindings.map(findingCard),
+              rowComments.map(commentCard), rowDrafts.map(function (item) { return draftCard(item.draft); }),
+              [threadActions(rowComments, { row: codeRow, path: file.path })])))));
+        }
+      });
+    });
+    var table = h('table', { class: 'diff', 'data-rest': String(restHunks) }, [
+      h('colgroup', null, [h('col', { class: 'no' }), h('col', { class: 'no' }), h('col')]),
+      body
+    ]);
+    if (live) {
+      // 點行號就在那一行寫留言。用一個監聽器處理整張表，不替每一行各建一個按鈕。
+      table.addEventListener('click', function (ev) {
+        var cell = ev.target.closest ? ev.target.closest('td.no') : null;
+        var row = cell && cell.parentNode;
+        if (!row || !row.getAttribute('data-kind')) return;
+        var side = row.getAttribute('data-kind') === 'del' ? 'old' : 'new';
+        var number = Number(row.getAttribute(side === 'old' ? 'data-old' : 'data-new'));
+        if (number) openEditor(row, file.path, side, number);
+      });
+    }
+    return table;
+  }
+
+  function buildFile(file) {
+    var list = findingsByPath[file.path] || [];
+    var notes = notesByPath[file.path] || [];
+    var guide = fileNotes[file.path] || {};
+    var lineCount = file.hunks.reduce(function (sum, hunk) { return sum + hunk.lines.length; }, 0);
+    var view = { file: file, rendered: false, findings: list };
+    // 這一輪改過的行：服務給的是「上一輪到現在」有變的新檔行號，只標其中屬於這個 PR 新增的行。
+    var roundNew = {}, roundCount = 0;
+    (file.round_lines || []).length && file.hunks.forEach(function (hunk) {
+      hunk.lines.forEach(function (line) {
+        if (line.t !== 'add') return;
+        var hit = file.round_lines.some(function (range) { return line['new'] >= range[0] && line['new'] <= range[1]; });
+        if (hit) { roundNew[line['new']] = true; roundCount += 1; }
+      });
+    });
+    var slash = file.path.lastIndexOf('/');
+    var pathNode = h('span', { class: 'path', title: '展開或收合' }, [
+      file.old_path ? h('span', { class: 'dir', text: file.old_path + ' → ' }) : null,
+      h('span', { class: 'dir', text: file.path.slice(0, slash + 1) }),
+      file.path.slice(slash + 1)
+    ]);
+    var toggle = h('button', { class: 'toggle', 'aria-label': '展開或收合', text: '▸' });
+    var talkChip = h('span', { class: 'talk', hidden: true });
+    var checkbox = h('input', { type: 'checkbox' });
+    var prUrl = safeUrl(data.pr.url);
+    var head = h('div', { class: 'file-head' }, [
+      toggle,
+      h('span', { class: 'status', text: STATUS[file.status] || file.status }),
+      pathNode,
+      // 其餘的標示是一組：寬度不夠時整組換到第二列，「已看」留在第一列最右邊，每個檔案的位置都一樣。
+      h('span', { class: 'file-meta' }, [
+        guide.skim ? h('span', { class: 'tag', text: '可快速掃過' }) : null,
+        talkChip,
+        ROUND_CHANGE[file.round_change] ? h('span', { class: 'round-tag', text: roundCount ? '這一輪改了 ' + roundCount + ' 行' : ROUND_CHANGE[file.round_change] }) : null,
+        severityPills(list),
+        file.skipped_reason ? null : h('span', { class: 'stat add', text: '+' + file.additions }),
+        file.skipped_reason ? null : h('span', { class: 'stat del', text: '−' + file.deletions }),
+        prUrl ? h('a', { class: 'ext', href: prUrl.replace(/\/+$/, '') + '/files#diff-' + file.anchor, target: '_blank', rel: 'noopener noreferrer', text: 'Gitea', title: '在 Gitea 開啟這個檔案的 diff' }) : null
+      ]),
+      h('label', null, [checkbox, '已看'])
+    ]);
+    var guideNode = guide.note ? h('div', { class: 'file-guide' }, [h('span', { class: 'tlabel', text: '導讀' }), richText(guide.note)]) : null;
+    // 第一次用的人不知道可以點行號留言：在第一個有 diff 的檔案上方說一次，按「知道了」之後記在電腦上，不再出現。
+    var hintNode = null;
+    if (live && !hintsSeen['line-comment'] && !hintPlaced && file.hunks.length) {
+      hintPlaced = true;
+      hintNode = h('div', { class: 'hint-row' }, [
+        h('span', { class: 'grow' }, [
+          '想對某一行說話？點那一行的行號就能留言；游標移到那一行上，行號旁會出現 ',
+          h('span', { class: 'plus', 'aria-hidden': 'true', text: '+' }), '。'
+        ]),
+        h('button', { text: '知道了', on: { click: function () {
+          hintsSeen['line-comment'] = true;
+          hintNode.remove();
+          api('/api/hint', { id: 'line-comment' });
+        } } })
+      ]);
+    }
+    var bodyNode = h('div', { class: 'file-body', hidden: true });
+    var section = h('section', { class: 'file', id: 'file-' + file.anchor }, [head, hintNode, guideNode, bodyNode]);
+
+    function renderBody() {
+      if (view.rendered) return;
+      view.rendered = true;
+      if (file.skipped_reason) bodyNode.append(h('div', { class: 'file-note', text: SKIPPED[file.skipped_reason] || '沒有納入審查。' }));
+      if (file.sensitive_markers && file.sensitive_markers.length) {
+        bodyNode.append(h('div', { class: 'file-note warn', text: '偵測到疑似敏感字樣：' + file.sensitive_markers.join('、') }));
+      }
+      var staleDrafts = (draftsByPath[file.path] || []).filter(function (draft) { return !draft.valid; });
+      if (staleDrafts.length) bodyNode.append(h('div', { class: 'file-talk' }, h('div', { class: 'thread' }, staleDrafts.map(draftCard))));
+      var oldComments = (commentsByPath[file.path] || []).filter(function (comment) { return comment.anchor !== 'line'; });
+      if (oldComments.length) {
+        // 同一行上的留言排在一起，後面接「解決討論」；那一行已經變動，沒有地方可以接著回覆。
+        var oldGroups = {}, oldOrder = [];
+        oldComments.forEach(function (comment) {
+          var key = comment.side + ':' + comment.line;
+          if (!oldGroups[key]) { oldGroups[key] = []; oldOrder.push(key); }
+          oldGroups[key].push(comment);
+        });
+        var oldThread = h('div', { class: 'thread' }, oldOrder.map(function (key) {
+          return [oldGroups[key].map(commentCard), threadActions(oldGroups[key], null)];
+        }));
+        var mineOld = oldComments.filter(function (comment) { return comment.mine; }).length;
+        if (data.round.changes && mineOld) {
+          // 第 2 輪起，自己上次留言的那一行改了，正是這一輪要確認的事：直接攤開，不收起來。
+          bodyNode.append(h('div', { class: 'old-comments-open' }, [
+            h('span', { class: 'tlabel', text: '你上次留言的那一行已經改了，請確認作者有沒有處理（' + oldComments.length + ' 則）' }),
+            oldThread
+          ]));
+        } else {
+          bodyNode.append(h('details', { class: 'old-comments' }, [
+            h('summary', { text: '留言時的那一行已經改了的留言（' + oldComments.length + '）' }),
+            oldThread
+          ]));
+        }
+      }
+      var fileNotesList = notes.filter(function (note) { return note.anchor === 'file'; });
+      if (fileNotesList.length) bodyNode.append(h('div', { class: 'file-annots' }, h('div', { class: 'thread' }, fileNotesList.map(noteCard))));
+      var fileLevel = list.filter(function (finding) { return finding.anchor === 'file'; });
+      if (fileLevel.length) bodyNode.append(h('div', { class: 'file-findings' }, h('div', { class: 'thread' }, fileLevel.map(findingCard))));
+      if (file.hunks.length) {
+        var table = buildDiff(file, list, notes, roundNew);
+        bodyNode.append(table);
+        var restCount = Number(table.getAttribute('data-rest')) || 0;
+        if (restCount) {
+          bodyNode.append(h('div', { class: 'skipped-hunks' }, [
+            h('span', { class: 'grow', text: '這個檔案另外有 ' + restCount + ' 處變更，這一輪沒有動（你上一輪已經看過）。' }),
+            h('button', { class: 'link strong', text: '展開來看', on: { click: function () {
+              keepInPlace(head, function () { section.classList.add('all-hunks'); });
+            } } })
+          ]));
+        }
+      }
+      else if (!file.skipped_reason) bodyNode.append(h('div', { class: 'file-note', text: EMPTY_DIFF[file.status] || EMPTY_DIFF.M }));
+      if (file.truncated) bodyNode.append(h('div', { class: 'file-note warn', text: '這個檔案的 diff 太長，只顯示前半部；完整內容請到 Gitea 查看。' }));
+    }
+    view.setOpen = function (open) {
+      if (open) renderBody();
+      bodyNode.hidden = !open;
+      section.classList.toggle('open', open);
+      toggle.textContent = open ? '▾' : '▸';
+    };
+    view.isOpen = function () { return !bodyNode.hidden; };
+    view.syncViewed = function () {
+      var on = isViewed(file);
+      checkbox.checked = on;
+      section.classList.toggle('viewed', on);
+    };
+    view.toggleViewed = function () { checkbox.click(); };
+    function liveSignature() {
+      return JSON.stringify([
+        live ? live.connection.can_resolve === true : false,
+        draftsByPath[file.path] || [],
+        (commentsByPath[file.path] || []).map(function (c) { return [c.id, c.anchor, c.resolved, c.body.length]; }),
+        list.map(function (f) { var d = decisionFor(f); return [d ? d.status : '', !!draftByFinding[f.id]]; })
+      ]);
+    }
+    function syncTalk() {
+      var count = (commentsByPath[file.path] || []).length;
+      var pending = (draftsByPath[file.path] || []).length;
+      talkChip.hidden = !count && !pending;
+      talkChip.textContent = [count ? '留言 ' + count : '', pending ? '待送出 ' + pending : ''].filter(Boolean).join(' · ');
+    }
+    // 留言、草稿或忽略的狀態有變時重畫這個檔案；沒變的檔案不動。
+    view.rerender = function () {
+      syncTalk();
+      var signature = liveSignature();
+      if (signature === view.liveSignature) return;
+      view.liveSignature = signature;
+      if (!view.rendered) return;
+      bodyNode.textContent = '';
+      view.rendered = false;
+      if (view.isOpen()) renderBody();
+    };
+    view.liveSignature = liveSignature();
+    syncTalk();
+    view.section = section;
+    view.head = head;
+
+    function toggleOpen() { keepInPlace(head, function () { view.setOpen(!view.isOpen()); }); }
+    toggle.addEventListener('click', toggleOpen);
+    pathNode.addEventListener('click', toggleOpen);
+    checkbox.addEventListener('change', function () {
+      // 勾選「已看」就收合，取消就重新展開；檔案標題留在畫面上的同一個位置，下一個檔案緊接在後。
+      keepInPlace(head, function () {
+        setViewed(file, checkbox.checked);
+        view.syncViewed();
+        view.setOpen(!checkbox.checked);
+      });
+      updateProgress();
+    });
+
+    view.syncViewed();
+    // 標成「可快速掃過」的檔案預設收合；但上面有意見或導讀註解時照常展開，不讓它們被藏起來。
+    var collapsedAsSkim = !!guide.skim && !list.length && !notes.length
+      && !(commentsByPath[file.path] || []).length && !(draftsByPath[file.path] || []).length;
+    view.setOpen(!isViewed(file) && !file.skipped_reason && !collapsedAsSkim && lineCount <= LARGE_FILE_LINES);
+    fileViews[file.path] = view;
+    return section;
+  }
+
+  // ---- 即時狀態的更新 ---------------------------------------------------------------------
+  var generalBox = h('div', { id: 'general-findings' });
+  // 第 2 輪的摘要裡「你留過的留言」那一行；留言的狀態會變，所以和其他即時內容一起重畫。
+  var roundMineBox = h('div', { class: 'mine', hidden: true });
+  function renderRoundMine() {
+    roundMineBox.textContent = '';
+    roundMineBox.hidden = true;
+    if (!live || !data.round.changes) return;
+    var mine = live.comments.filter(function (comment) { return comment.mine; });
+    if (!mine.length) return;
+    var moved = mine.filter(function (comment) { return comment.anchor !== 'line' && filesByPath[comment.path]; });
+    var kept = mine.length - moved.length;
+    roundMineBox.hidden = false;
+    appendChildren(roundMineBox, [
+      h('span', { class: 'grow' }, [
+        '你留過的 ' + mine.length + ' 則留言：',
+        moved.length ? h('b', { text: moved.length + ' 則所在的那一行已經改了，請確認' }) : '所在的行都沒有動',
+        moved.length && kept ? '；' + kept + ' 則沒有動。' : '。'
+      ]),
+      moved.length ? h('button', { class: 'link strong', text: '看這 ' + moved.length + ' 則', on: { click: function () { goToComment(moved[0]); } } }) : null
+    ]);
+  }
+  var connectZone = h('div', { id: 'connect-zone' });
+  var talkZone = h('div', { id: 'talk-zone' });
+  var liveUi = null;
+
+  function applyResult(res, anchorNode) {
+    if (res && res.ok && res.live) { applyLive(res.live, anchorNode); return; }
+    window.alert((res && res.message) || '沒有完成，請再試一次。');
+    if (res && res.live) applyLive(res.live, anchorNode);  // 沒有完成時服務也可能回報最新的狀態
+  }
+  function applyLive(next, anchorNode) {
+    // 重畫時把畫面釘在使用者剛才操作的那個檔案上。
+    var section = anchorNode && anchorNode.closest ? anchorNode.closest('section.file') : null;
+    var anchor = section ? section.querySelector('.file-head') : (anchorNode && anchorNode.isConnected ? anchorNode : null);
+    keepInPlace(anchor, function () {
+      live = next;
+      viewedMap = live.viewed;
+      indexLive();
+      Object.keys(fileViews).forEach(function (path) { fileViews[path].rerender(); });
+      renderGeneralFindings();
+      renderLiveZones();
+      refreshLiveChrome();
+    });
+  }
+  function renderGeneralFindings() {
+    generalBox.textContent = '';
+    var general = findings.filter(function (finding) { return finding.anchor === 'general'; });
+    if (general.length) generalBox.append(h('div', { class: 'card' }, [h('h2', { text: '整體意見' }), h('div', { class: 'thread' }, general.map(findingCard))]));
+  }
+  function refreshLiveChrome() {
+    if (!live || !liveUi) return;
+    var ready = live.connection.ok && live.connection.has_token;
+    liveUi.conn.textContent = ready ? '已連接' + (live.connection.user ? '：' + live.connection.user : '') : '連接 Gitea';
+    liveUi.conn.className = 'conn' + (ready ? '' : ' off');
+    liveUi.conn.title = ready && live.connection.version ? 'Gitea ' + live.connection.version : '';
+    liveUi.submit.textContent = '送出 review（' + live.drafts.length + '）';
+    liveUi.submit.disabled = !ready;
+    liveUi.submit.title = ready ? '' : '先在頁面最上方連接 Gitea';
+  }
+
+  function connectCard() {
+    var conn = live.connection;
+    var url = h('input', { type: 'text', value: conn.host || '', spellcheck: 'false', 'aria-label': 'Gitea 的網址' });
+    var token = h('input', { type: 'password', placeholder: '貼上 token', autocomplete: 'off', 'aria-label': 'token' });
+    var message = h('div', { class: 'msg' });
+    var button = h('button', { class: 'primary', text: '連接' });
+    button.addEventListener('click', function () {
+      if (!token.value.trim()) { token.focus(); return; }
+      button.disabled = true;
+      message.className = 'msg';
+      message.textContent = '確認中…';
+      api('/api/connect', { url: url.value, token: token.value }).then(function (res) {
+        token.value = '';
+        button.disabled = false;
+        // 連上之後重新載入：PR 的標題、作者與既有的留言這時才讀得到。
+        if (res.ok) { message.className = 'msg good'; message.textContent = '已連接，重新載入中…'; window.location.reload(); return; }
+        message.className = 'msg error';
+        message.textContent = res.message || '沒有連上。';
+      });
+    });
+    return h('div', { class: 'card connect', id: 'connect' }, [
+      h('h2', { text: '連接 Gitea' }),
+      h('p', { class: 'prose', text: conn.ok
+        ? '這個 PR 讀得到，但要把留言送到 Gitea 需要一個 token。貼上之後就能送出，只需要做一次。'
+        : (conn.plain || '還讀不到這個 PR 在 Gitea 上的資料。') + '連接之前仍然可以看 diff 與 AI 的意見；連接之後才看得到 PR 上既有的留言，也才能送出留言。只需要做一次。' }),
+      !conn.ok && conn.message ? h('details', { class: 'draft-note' }, [h('summary', { text: '詳細資訊' }), conn.message]) : null,
+      h('label', { text: 'Gitea 的網址' + (conn.host_guessed ? '（這是從 git 的設定猜的，不對的話請改掉）' : '') }),
+      url,
+      h('label', { text: 'token' }),
+      h('div', { class: 'row' }, [token, button]),
+      message,
+      h('p', { class: 'draft-note' }, [
+        safeUrl(conn.token_page)
+          ? h('a', { href: conn.token_page, target: '_blank', rel: 'noopener noreferrer', text: '到 Gitea 產生 token' })
+          : '到 Gitea 的「設定 → 應用程式」產生 token',
+        '：權限勾選 repository「讀寫」與 user「讀取」。token 只存在這台電腦上，不會留在這個頁面。'
+      ])
+    ]);
+  }
+  function overallDraftsCard() {
+    var overall = live.drafts.filter(function (draft) { return draft.line == null; });
+    var card = h('div', { class: 'card', id: 'overall-drafts' }, [
+      h('h2', { text: '我要留的話' }),
+      h('p', { class: 'draft-note', text: '要針對某一行留言，直接點 diff 裡的行號。寫在這裡的會放進 review 的整體說明。全部寫完後按右上角的「送出 review」。' }),
+      h('div', { class: 'thread' }, overall.map(draftCard).concat([
+        h('div', { class: 'titem new' }, composer({
+          label: '整體留言', placeholder: '針對整個 PR 的留言…', verb: '加入', submitLabel: '加入待送出',
+          onSubmit: function (text, fail) {
+            api('/api/draft', { path: '', line: null, body: text }).then(function (res) {
+              if (res.ok) applyResult(res, card); else fail(res.message || '沒有儲存');
+            });
+          }
+        }))
+      ]))
+    ]);
+    return card;
+  }
+  function goToComment(comment) {
+    var view = fileViews[comment.path];
+    if (view) {
+      if (view.section.offsetParent === null) { filters.findings = false; filters.changed = false; applyFilters(); }
+      view.setOpen(true);
+    }
+    var node = document.getElementById('gc-' + comment.id);
+    if (!node) return;
+    var folded = node.closest('details');
+    if (folded) folded.open = true;
+    node.scrollIntoView({ block: 'center', behavior: SCROLL });
+    node.classList.add('flash');
+    setTimeout(function () { node.classList.remove('flash'); }, 2200);
+  }
+  function commentsCard() {
+    if (!live.comments.length && !live.reviews.length) return null;
+    var REVIEW_STATE = { APPROVED: '核准', REQUEST_CHANGES: '要求修改', COMMENT: '留言' };
+    function row(comment) {
+      var inPage = !!fileViews[comment.path];
+      var props = inPage
+        ? { href: '#gc-' + comment.id, on: { click: function (ev) { ev.preventDefault(); goToComment(comment); } } }
+        : { href: safeUrl(comment.url) || '#', target: '_blank', rel: 'noopener noreferrer', title: '這個檔案已經不在這次的變更裡，到 Gitea 查看' };
+      return h('a', props, [
+        h('span', { class: 'where', text: whereLabel(comment) }),
+        h('span', { class: 'state', text: [comment.resolved ? '已解決' : '', comment.anchor !== 'line' ? '已變動' : ''].filter(Boolean).join('、') }),
+        h('span', { class: 'text', text: (comment.mine ? '' : comment.user + '：') + comment.body.split('\n')[0] })
+      ]);
+    }
+    var mine = live.comments.filter(function (comment) { return comment.mine; });
+    var others = live.comments.filter(function (comment) { return !comment.mine; });
+    var refresh = h('button', { text: '重新讀取', on: { click: function () {
+      refresh.disabled = true;
+      api('/api/refresh', {}).then(function (res) { refresh.disabled = false; applyResult(res, card); });
+    } } });
+    var card = h('div', { class: 'card', id: 'comments' }, [
+      h('h2', null, ['PR 上已經有的留言（' + live.comments.length + '）　', refresh]),
+      // can_resolve 是 false 才代表版本不夠；讀不到版本（null）或服務還是舊的（沒有這一欄）時不下結論
+      live.comments.length && live.connection.ok && live.connection.has_token && live.connection.can_resolve === false
+        ? h('p', { class: 'draft-note', text: '這台 Gitea' + (live.connection.version ? '（' + live.connection.version + '）' : '')
+            + '還不能從這裡解決討論，要 1.26 以上才行；要解決請點留言右邊的「在 Gitea 開啟」。' })
+        : null,
+      mine.length ? [h('h3', { text: '我留過的（' + mine.length + '）' }), h('div', { class: 'comment-list' }, mine.map(row))] : null,
+      others.length ? [h('h3', { text: '其他人的（' + others.length + '）' }), h('div', { class: 'comment-list' }, others.map(row))] : null,
+      live.reviews.length ? [h('h3', { text: '整體說明' }), h('ul', { class: 'plain' }, live.reviews.map(function (review) {
+        return h('li', null, [
+          h('b', { text: review.user }), '（' + (REVIEW_STATE[review.state] || review.state) + (review.mine ? '，我的' : '') + '）',
+          review.body.trim() ? '：' : '', richText(review.body.trim())
+        ]);
+      }))] : null
+    ]);
+    return card;
+  }
+  function renderLiveZones() {
+    renderRoundMine();
+    connectZone.textContent = '';
+    talkZone.textContent = '';
+    if (!live) return;
+    if (!live.connection.ok || !live.connection.has_token) connectZone.append(connectCard());
+    if (live.head_moved) {
+      connectZone.append(h('div', { class: 'card banner', text: '作者在你打開這個頁面之後推了新的 commit。回到對話再說一次「review 這個 PR」，就會進入下一輪。' }));
+    }
+    talkZone.append(overallDraftsCard());
+    var comments = commentsCard();
+    if (comments) talkZone.append(comments);
+  }
+
+  function openSubmitDialog() {
+    var old = document.getElementById('submit-dialog');
+    if (old) old.remove();
+    var inline = live.drafts.filter(function (draft) { return draft.line != null && draft.valid; });
+    var overall = live.drafts.filter(function (draft) { return draft.line == null; });
+    var skipped = live.drafts.filter(function (draft) { return draft.line != null && !draft.valid; });
+    var count = inline.length + overall.length;
+    var summary = h('textarea', { id: 'review-summary', rows: '2', placeholder: '給作者的一段話…' });
+    var message = h('div', { class: 'msg' });
+    var send = h('button', { class: 'primary' });
+    var cancel = h('button', { class: 'link plain', text: '取消' });
+    var force = false;
+    var options = [
+      ['COMMENT', '只留言', '不表態，單純留下意見'],
+      ['APPROVED', '核准', '可以合併'],
+      ['REQUEST_CHANGES', '要求修改', '修改後再看一次']
+    ];
+    var picked = options[0];
+    var summaryLabel = h('label', { class: 'flabel', 'for': 'review-summary' });
+    // Gitea 規定「要求修改」一定要有說明；寫在「我要留的話」的整體留言也算，所以有它就不用再填。
+    function needsSummary() { return picked[0] === 'REQUEST_CHANGES' && !overall.length; }
+    // 按鈕上直接寫出按下去會發生什麼事：哪一種結論、幾則留言。
+    function labelSend() {
+      send.textContent = force ? '仍然送出' : '送出：' + picked[1] + (count ? '（' + count + ' 則）' : '');
+      summaryLabel.textContent = needsSummary() ? '整體說明（必填）' : '整體說明（選填）';
+      summary.placeholder = needsSummary() ? '要作者修改什麼？' : '給作者的一段話…';
+      summary.required = needsSummary();
+    }
+    var events = options.map(function (option, index) {
+      var input = h('input', { type: 'radio', name: 'review-event', value: option[0], checked: index === 0 });
+      var label = h('label', { class: index === 0 ? 'on' : '' }, [input, h('b', { text: option[1] }), h('span', { text: option[2] })]);
+      input.addEventListener('change', function () {
+        picked = option;
+        events.forEach(function (other) { other.classList.toggle('on', other === label); });
+        labelSend();
+      });
+      return label;
+    });
+    // 每則留言先顯示一行，點一下展開完整內容。
+    function item(draft) {
+      var text = h('button', { class: 'text', type: 'button', 'aria-expanded': 'false', title: '點一下看完整內容', text: draft.body });
+      var row = h('li', null, [
+        h('span', { class: 'where', text: whereLabel(draft), title: draft.path || '' }),
+        text,
+        draft.finding ? h('span', { class: 'tag', text: 'AI 輔助審查' }) : null
+      ]);
+      text.addEventListener('click', function () { text.setAttribute('aria-expanded', String(row.classList.toggle('open'))); });
+      return row;
+    }
+    var user = live.connection.user;
+    var dialog = h('dialog', { id: 'submit-dialog', 'aria-label': '送出 review' }, [
+      h('div', { class: 'dialog-body' }, [
+        h('div', null, [
+          h('h2', { text: '送出 review' }),
+          h('p', { class: 'lead', text: '會以' + (user ? ' ' + user + ' ' : '你') + '的身分出現在 PR #' + data.pr.number + ' 上，作者會收到通知。送出後要修改只能到 Gitea。' })
+        ]),
+        h('div', { class: 'field', role: 'radiogroup', 'aria-label': '結論' }, [
+          h('div', { class: 'flabel', text: '結論' }), h('div', { class: 'events' }, events)
+        ]),
+        h('div', { class: 'field' }, [
+          summaryLabel, h('div', { class: 'composer' }, summary)
+        ]),
+        count ? h('div', { class: 'field' }, [
+          h('div', { class: 'flabel', text: '會送出的留言（' + count + ' 則）' }),
+          h('ul', { class: 'send-list' }, inline.concat(overall).map(item))
+        ]) : null,
+        skipped.length ? h('p', { class: 'msg error', text: '有 ' + skipped.length + ' 則待送出的留言，所在的那一行已經不在目前的 diff 裡。這次不會送出，會繼續留著。' }) : null,
+        message
+      ]),
+      h('div', { class: 'dialog-actions' }, [cancel, send])
+    ]);
+    labelSend();
+    cancel.addEventListener('click', function () { dialog.close(); dialog.remove(); });
+    send.addEventListener('click', function () {
+      var chosen = dialog.querySelector('input[name="review-event"]:checked');
+      if (needsSummary() && !summary.value.trim()) {
+        message.className = 'msg error';
+        message.textContent = '「要求修改」要寫整體說明：請寫下要作者修改什麼。';
+        summary.focus();
+        return;
+      }
+      send.disabled = true;
+      message.className = 'msg';
+      message.textContent = '送出中…';
+      api('/api/submit', { event: chosen ? chosen.value : 'COMMENT', body: summary.value, force: force }).then(function (res) {
+        send.disabled = false;
+        if (res.ok) {
+          message.className = 'msg good';
+          message.textContent = '已送出' + (res.sent ? '，包含 ' + res.sent + ' 則行內留言' : '') + '。';
+          if (safeUrl(res.url)) message.append(h('a', { href: res.url, target: '_blank', rel: 'noopener noreferrer', text: '在 Gitea 查看' }));
+          send.hidden = true;
+          cancel.textContent = '關閉';
+          applyLive(res.live, null);
+          return;
+        }
+        message.className = 'msg error';
+        message.textContent = res.message || '沒有送出。';
+        if (res.need_body) summary.focus();
+        if (res.head_moved) { force = true; labelSend(); }
+      });
+    });
+    document.body.append(dialog);
+    if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
+  }
+
+  function scrollToNode(node) {
+    node.scrollIntoView({ block: 'start', behavior: SCROLL });
+  }
+  function goToGroup(id) {
+    var view = groupViews[id];
+    if (!view) return;
+    if (view.section.hidden) { filters.findings = false; filters.changed = false; applyFilters(); }
+    scrollToNode(view.section);
+  }
+  function goToFinding(finding) {
+    var view = fileViews[finding.path];
+    if (view) {
+      if (view.section.offsetParent === null) { filters.findings = false; filters.changed = false; applyFilters(); }
+      view.setOpen(true);
+    }
+    var card = document.getElementById('finding-' + finding.id);
+    if (!card) return;
+    card.scrollIntoView({ block: 'center', behavior: SCROLL });
+    card.classList.add('flash');
+    setTimeout(function () { card.classList.remove('flash'); }, 2200);
+  }
+  function groupLink(id, children, cls) {
+    return h('a', { class: cls, href: '#group-' + id, on: { click: function (ev) { ev.preventDefault(); goToGroup(id); } } }, children);
+  }
+  function groupFindings(group) {
+    var out = [];
+    group.files.forEach(function (path) { out = out.concat(findingsByPath[path] || []); });
+    return out;
+  }
+
+  function buildGuideCard() {
+    var guide = analysis.guide;
+    var card = h('div', { class: 'card', id: 'guide' }, h('h2', { text: '導讀' }));
+    if (guide && guide.background) {
+      card.append(h('h3', { text: '背景' }), h('p', { class: 'prose' }, richText(guide.background)));
+    }
+    if (guide && guide.approach) {
+      card.append(h('h3', { text: '做法' }), h('p', { class: 'prose' }, richText(guide.approach)));
+    }
+    if (guide && guide.flow && guide.flow.length) {
+      card.append(h('h3', { text: '主線' }));
+      card.append(h('ol', { class: 'flow' }, guide.flow.map(function (step) {
+        var target = step.group && groupIndex[step.group];
+        return h('li', null, [
+          richText(step.text),
+          target ? groupLink(step.group, '第 ' + target + ' 組', 'to') : null
+        ]);
+      })));
+    }
+    card.append(h('h3', { text: '閱讀順序' }));
+    card.append(h('ol', { class: 'map' }, data.groups.map(function (group, index) {
+      var relations = (group.relations || []).filter(function (relation) { return relation.group && groupIndex[relation.group]; });
+      return h('li', null, [
+        h('span', { class: 'step-num', text: String(index + 1) }),
+        h('div', null, [
+          groupLink(group.id, richText(group.title), 'map-title'),
+          h('span', { class: 'map-meta' }, [group.files.length + ' 檔'].concat(severityPills(groupFindings(group)))),
+          group.summary ? h('div', { class: 'map-summary' }, richText(group.summary)) : null,
+          relations.length ? h('div', { class: 'map-rel' }, relations.map(function (relation, i) {
+            return [i ? '；' : '接在第 ', i ? '第 ' : '', String(groupIndex[relation.group]), ' 組之後', relation.note ? '：' : '', richText(relation.note)];
+          })) : null
+        ])
+      ]);
+    })));
+    return card;
+  }
+
+  function buildOverview() {
+    var out = [];
+    var round = data.round;
+    out.push(connectZone);
+    if (!analysis) {
+      out.push(h('div', { class: 'card banner', text: '這一輪還沒有 AI 分析，以下只依路徑粗略分組，可以先看 diff。' }));
+    }
+    if (analysis) {
+      out.push(buildGuideCard());
+
+      var card = h('div', { class: 'card', id: 'verdict' }, [h('h2', { text: '審查結論' }), h('p', { class: 'prose' }, richText(analysis.summary))]);
+      if (analysis.score) {
+        card.append(h('h3', { text: '評分' }));
+        card.append(h('div', { class: 'score' }, [
+          h('div', null, [
+            h('div', { class: 'total' }, [String(analysis.score.total), h('small', { text: ' / 100' })]),
+            analysis.score.meaning ? h('div', { class: 'meaning', text: analysis.score.meaning }) : null
+          ]),
+          analysis.score.items.length ? h('table', { class: 'items' }, h('tbody', null, analysis.score.items.map(function (item) {
+            return h('tr', null, [
+              h('td', { text: item.category }),
+              h('td', { class: 'pts', text: item.score + ' / ' + item.max }),
+              h('td', { class: 'why' }, richText(item.notes))
+            ]);
+          }))) : null
+        ]));
+      }
+      card.append(h('h3', { text: '意見（' + findings.length + '）' }));
+      if (findings.length) {
+        var order = { P0: 0, P1: 1, P2: 2 };
+        var sorted = findings.slice().sort(function (a, b) { return order[a.severity] - order[b.severity]; });
+        card.append(h('div', { class: 'finding-index' }, sorted.map(function (finding) {
+          var where = finding.anchor === 'general' ? '整體'
+            : finding.path.split('/').pop() + (finding.line != null ? ':' + finding.line : '');
+          return h('a', { href: '#finding-' + finding.id, on: { click: function (ev) { ev.preventDefault(); goToFinding(finding); } } }, [
+            h('span', { class: 'sev ' + finding.severity, text: sevLabel(finding.severity) }),
+            h('span', { class: 'fid', text: finding.id }),
+            h('span', null, richText(finding.title || finding.body.split('\n')[0])),
+            h('span', { class: 'where', text: where })
+          ]);
+        })));
+      } else {
+        card.append(h('p', { class: 'prose', text: '這一輪沒有提出意見。' }));
+      }
+      [['business', '商業邏輯與產品行為'], ['testing', '測試建議'], ['assumptions', '假設與限制']].forEach(function (pair) {
+        var items = (analysis.notes || {})[pair[0]] || [];
+        if (!items.length) return;
+        card.append(h('h3', { text: pair[1] }));
+        card.append(h('ul', { class: 'plain' }, items.map(function (item) { return h('li', null, richText(item)); })));
+      });
+      out.push(card);
+
+      out.push(generalBox);
+      renderGeneralFindings();
+    }
+    out.push(talkZone);
+    renderLiveZones();
+
+    if (round.changes) {
+      var c = round.changes;
+      // 第 2 輪進來最想知道的是「這次改了什麼」：先用一句話回答，再給數字，最後是自己留過的留言有沒有被處理。
+      var roundLines = data.files.reduce(function (sum, file) { return sum + countRoundLines(file); }, 0);
+      var did = round.rebased ? '作者在你上一輪之後更新了分支（rebase 過，所以數不出推了幾個 commit）'
+        : round.commits ? '作者在你上一輪之後推了 ' + round.commits + ' 個 commit'
+        : '作者在你上一輪之後更新了這個 PR';
+      var card2 = h('div', { class: 'card round-summary', id: 'round-summary' }, [
+        h('div', { class: 'lead' }, [
+          h('span', { class: 'round-chip', text: '第 ' + round.number + ' 輪' }),
+          h('b', { text: did }),
+          h('span', { class: 'when', text: '上一輪：' + [shortDate(round.previous_at), shortSha(round.previous_head)].filter(Boolean).join(' · ') })
+        ]),
+        h('div', { class: 'facts' }, [
+          h('div', null, [h('b', { text: '這一輪改的' }), c.changed + ' 個檔案' + (roundLines ? '，共 ' + roundLines + ' 行' : '')]),
+          h('div', null, [h('b', { text: '這一輪才出現的' }), c['new'] + ' 個檔案']),
+          h('div', { class: 'quiet' }, [h('b', { text: '沒有變的' }), c.unchanged + ' 個檔案，沿用你上次的「已看」'])
+        ]),
+        roundMineBox
+      ]);
+      if (round.dropped_files.length) {
+        card2.append(h('h3', { text: '上一輪有、這一輪已不在變更裡' }));
+        card2.append(h('ul', { class: 'plain' }, round.dropped_files.map(function (path) { return h('li', null, h('code', { text: path })); })));
+      }
+      out.push(card2);
+    }
+    if (data.warnings.length) {
+      out.push(h('details', { class: 'card' }, [
+        h('summary', { text: '分析結果有 ' + data.warnings.length + ' 處需要留意' }),
+        h('ul', { class: 'plain' }, data.warnings.map(function (warning) { return h('li', { text: warning }); }))
+      ]));
+    }
+    return h('section', { id: 'overview' }, out);
+  }
+
+  function buildGroup(group, index) {
+    var count = h('span', { class: 'count' });
+    var num = h('span', { class: 'step-num', text: String(index + 1) });
+    var section = h('section', { class: 'group', id: 'group-' + group.id }, [
+      h('h2', null, [num, h('span', null, richText(group.title)), count]),
+      group.summary ? h('p', { class: 'group-summary' }, richText(group.summary)) : null,
+      group.relations && group.relations.length ? h('div', { class: 'relations' }, group.relations.map(function (relation) {
+        var target = relation.group && groupIndex[relation.group];
+        var prefix = target ? '第 ' + target + ' 組' + (relation.note ? '：' : '') : '';
+        var label = [prefix, richText(relation.note)];
+        return target ? groupLink(relation.group, label) : h('span', null, label);
+      })) : null,
+      group.focus && group.focus.length ? h('div', { class: 'focus' }, [
+        h('div', { class: 'focus-label', text: '看這組時要確認的事' }),
+        h('ul', null, group.focus.map(function (item) { return h('li', null, richText(item)); }))
+      ]) : null
+    ]);
+    group.files.forEach(function (path) {
+      if (filesByPath[path]) section.append(buildFile(filesByPath[path]));
+    });
+
+    var nextLink = h('a', { href: '#overview' });
+    nextLink.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var target = nextVisibleGroup(index);
+      if (target) scrollToNode(groupViews[target.id].section); else window.scrollTo({ top: 0, behavior: SCROLL });
+    });
+    section.append(h('div', { class: 'group-next' }, nextLink));
+    groupViews[group.id] = { group: group, index: index, section: section, count: count, num: num, nextLink: nextLink, findings: groupFindings(group) };
+    return section;
+  }
+  function nextVisibleGroup(index) {
+    for (var i = index + 1; i < data.groups.length; i += 1) {
+      if (!groupViews[data.groups[i].id].section.hidden) return data.groups[i];
+    }
+    return null;
+  }
+  function updateNextLinks() {
+    data.groups.forEach(function (group, index) {
+      var link = groupViews[group.id].nextLink;
+      var target = nextVisibleGroup(index);
+      link.textContent = '';
+      if (target) link.append('接著看第 ' + groupIndex[target.id] + ' 組：', richText(target.title), ' ↓');
+      else link.append('這是最後一組，回到最上面 ↑');
+    });
+  }
+
+  function buildSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    function plain(href, text) {
+      return h('a', { class: 'nav', href: href, on: { click: function (ev) {
+        var target = document.querySelector(href);
+        if (!target) return;
+        ev.preventDefault();
+        scrollToNode(target);
+      } } }, [h('span', { class: 'num', text: '' }), h('span', { class: 'name', text: text })]);
+    }
+    if (analysis) {
+      sidebar.append(plain('#guide', '導讀'), plain('#verdict', '審查結論'));
+    } else {
+      sidebar.append(plain('#overview', '總覽'));
+    }
+    if (live) sidebar.append(plain('#talk-zone', '留言'));
+    sidebar.append(h('div', { class: 'label', text: analysis ? '建議閱讀順序' : '依路徑分組' }));
+    data.groups.forEach(function (group, index) {
+      var view = groupViews[group.id];
+      var meta = h('span', { class: 'meta' });
+      var navNum = h('span', { class: 'num', text: String(index + 1) });
+      var link = groupLink(group.id, [navNum, h('span', { class: 'name' }, [richText(group.title), meta])], 'nav');
+      view.link = link;
+      view.meta = meta;
+      view.navNum = navNum;
+      sidebar.append(link);
+    });
+  }
+
+  // 由服務開啟時以服務給的偏好為準（data.theme），其餘情況用瀏覽器裡存的。
+  var themePref = live ? data.theme : null;
+  if (!themePref) { try { themePref = localStorage.getItem(THEME_KEY); } catch (err) { themePref = null; } }
+  if (!THEME_LABEL[themePref]) themePref = 'auto';
+  var systemDark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function applyTheme() {
+    var dark = themePref === 'dark' || (themePref === 'auto' && !!systemDark && systemDark.matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  }
+  if (systemDark && systemDark.addEventListener) systemDark.addEventListener('change', applyTheme);
+
+  // 圖例：使用者想看時才打開。每一項都是頁面上真正的樣子，旁邊寫它的意思；不做一進來就跳出來的教學。
+  function buildLegend() {
+    var rows = [
+      [h('span', { class: 'signs' }, [h('span', { class: 'add', text: '+' }), ' ', h('span', { class: 'del', text: '−' })]), '新增的行、刪除的行'],
+      [h('span', { class: 'sev P0', text: sevLabel('P0') }), '不修不該合併'],
+      [h('span', { class: 'sev P1', text: sevLabel('P1') }), '應該修'],
+      [h('span', { class: 'sev P2', text: sevLabel('P2') }), '可以更好，不修也行'],
+      [h('span', { class: 'round-chip', text: '這一輪改的' }), '你上一輪看過之後才改的（第 2 輪起才會出現）'],
+      [h('span', { class: 'tlabel', text: '導讀' }), 'AI 寫的說明，幫你看懂這段在做什麼；不是問題']
+    ];
+    if (live) {
+      rows.push([[h('span', { class: 'dash' }), h('b', { text: '待送出' })], '你寫好、還沒送到 Gitea 的留言']);
+      rows.push([h('span', { class: 'plus', text: '+' }), '在那一行留言：點行號，或游標移到那一行上再按 +']);
+    }
+    return h('aside', { class: 'legend', id: 'legend', 'aria-label': '圖例', hidden: true }, [
+      h('h2', null, ['圖例', h('button', { class: 'link', 'aria-label': '關閉圖例', text: '關閉' })]),
+      h('dl', null, rows.map(function (row) { return [h('dt', null, row[0]), h('dd', { text: row[1] })]; }))
+    ]);
+  }
+  function buildTopbar() {
+    var pr = data.pr, round = data.round;
+    var prUrl = safeUrl(pr.url);
+    var progress = h('span', { class: 'progress' });
+    var bar = h('div', { id: 'progress-bar' });
+    var findingsBtn = h('button', { 'aria-pressed': 'false', text: '只看有意見的' });
+    findingsBtn.addEventListener('click', function () { filters.findings = !filters.findings; applyFilters(); });
+    // 第 2 輪起可以切換：只看上次 review 之後的變更（預設），或看這個 PR 的全部變更。
+    var sinceBtn = null, allBtn = null, viewSeg = null;
+    if (round.changes) {
+      sinceBtn = h('button', { 'aria-pressed': 'true', text: '上次 review 之後的變更', on: { click: function () { filters.changed = true; applyFilters(); } } });
+      allBtn = h('button', { 'aria-pressed': 'false', text: '全部變更', on: { click: function () { filters.changed = false; applyFilters(); } } });
+      viewSeg = h('span', { class: 'seg', role: 'group', 'aria-label': '要顯示哪些變更' }, [sinceBtn, allBtn]);
+    }
+    var legend = buildLegend();
+    var legendBtn = h('button', { 'aria-expanded': 'false', 'aria-controls': 'legend', text: '圖例' });
+    function setLegend(open) {
+      legend.hidden = !open;
+      legendBtn.setAttribute('aria-expanded', String(open));
+    }
+    legendBtn.addEventListener('click', function () { setLegend(legend.hidden); });
+    legend.querySelector('button').addEventListener('click', function () { setLegend(false); legendBtn.focus(); });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !legend.hidden) setLegend(false); });
+    document.body.append(legend);
+
+    var notesBtn = annotations.length ? h('button', { 'aria-pressed': 'true', text: '顯示導讀註解' }) : null;
+    if (notesBtn) notesBtn.addEventListener('click', function () {
+      var view = currentView();
+      keepInPlace(view && view.head, function () {
+        var hidden = document.body.classList.toggle('hide-notes');
+        notesBtn.setAttribute('aria-pressed', String(!hidden));
+      });
+    });
+    var themeBtn = h('button', { text: THEME_LABEL[themePref] });
+    themeBtn.addEventListener('click', function () {
+      themePref = themePref === 'auto' ? 'light' : themePref === 'light' ? 'dark' : 'auto';
+      if (live) api('/api/theme', { theme: themePref });
+      else try { localStorage.setItem(THEME_KEY, themePref); } catch (err) { /* 無法儲存時只影響本次瀏覽 */ }
+      themeBtn.textContent = THEME_LABEL[themePref];
+      applyTheme();
+    });
+    // 排程預先分析時要不要包含這個專案：是這台電腦對這個專案的設定，認得出專案時才顯示。
+    var prerunBtn = null, prerunNote = null;
+    if (live && typeof data.prerun === 'boolean') {
+      prerunBtn = h('button', { 'aria-pressed': String(data.prerun), text: '排程預先分析這個專案' });
+      prerunNote = h('p', { class: 'menu-note' });
+      var describePrerun = function (on) {
+        prerunNote.textContent = on
+          ? '有設定排程時，會先把這個專案等你 review 的 PR 分析好。'
+          : '已關閉：排程不會分析這個專案的 PR。';
+      };
+      describePrerun(data.prerun);
+      prerunBtn.addEventListener('click', function () {
+        var next = prerunBtn.getAttribute('aria-pressed') !== 'true';
+        api('/api/prerun', { enabled: next }).then(function (res) {
+          if (!res.ok) { prerunNote.textContent = res.message || '設定沒有存起來。'; return; }
+          prerunBtn.setAttribute('aria-pressed', String(res.prerun));
+          describePrerun(res.prerun);
+        });
+      });
+    }
+    if (live) {
+      liveUi = {
+        conn: h('a', { class: 'conn', href: '#connect-zone', on: { click: function (ev) {
+          ev.preventDefault();
+          scrollToNode(document.getElementById(live.connection.ok && live.connection.has_token ? 'talk-zone' : 'connect-zone'));
+        } } }),
+        submit: h('button', { class: 'primary', on: { click: openSubmitDialog } })
+      };
+    }
+    var menu = h('details', { class: 'menu' }, [
+      h('summary', { text: '檢視' }),
+      h('div', { class: 'menu-panel' }, [
+        notesBtn,
+        h('button', { text: '全部展開', on: { click: function () { setAllOpen(true); } } }),
+        h('button', { text: '全部收合', on: { click: function () { setAllOpen(false); } } }),
+        themeBtn,
+        prerunBtn ? h('hr') : null, prerunBtn, prerunNote
+      ])
+    ]);
+    document.addEventListener('click', function (ev) {
+      if (menu.open && !menu.contains(ev.target)) menu.open = false;
+    });
+
+    // 專案有不只一個來源時，服務會給 pr.remote，標出這是哪個來源的 PR（各個來源的編號各算各的）
+    var sub = [pr.remote ? '來源 ' + pr.remote : '', pr.repo, pr.head_ref ? pr.head_ref + ' → ' + pr.base_ref : pr.base_ref, shortSha(round.head_sha), pr.author]
+      .filter(Boolean).join(' · ');
+    document.getElementById('topbar').append(
+      h('div', { class: 'title' }, [
+        h('b', { text: '#' + pr.number + ' ' + (pr.title || '（沒有讀到標題）') }),
+        h('div', { class: 'sub', text: sub })
+      ]),
+      h('div', { class: 'tools' }, [
+        PR_STATE[pr.state] ? h('span', { class: 'tag strong', text: PR_STATE[pr.state] }) : null,
+        h('span', { class: 'tag', text: '第 ' + round.number + ' 輪' }),
+        viewSeg, progress, findingsBtn,
+        liveUi ? liveUi.conn : null, liveUi ? liveUi.submit : null, legendBtn, menu,
+        prUrl ? h('a', { class: 'pr-link', href: prUrl, target: '_blank', rel: 'noopener noreferrer', text: '開啟 PR' }) : null
+      ]),
+      bar
+    );
+    document.title = '#' + pr.number + ' ' + (pr.title || 'PR Review');
+    return { progress: progress, bar: bar, findingsBtn: findingsBtn, sinceBtn: sinceBtn, allBtn: allBtn };
+  }
+
+  function setAllOpen(open) {
+    var view = currentView();
+    keepInPlace(view && view.head, function () {
+      Object.keys(fileViews).forEach(function (path) {
+        if (!fileViews[path].section.hidden) fileViews[path].setOpen(open);
+      });
+    });
+  }
+
+  function fileMatches(view) {
+    if (filters.findings && !view.findings.length) return false;
+    if (filters.changed && !(view.file.round_change === 'new' || view.file.round_change === 'changed')) return false;
+    return true;
+  }
+  function applyFilters() {
+    var anchor = currentView(fileMatches);
+    keepInPlace(anchor && anchor.head, function () {
+      topbar.findingsBtn.setAttribute('aria-pressed', String(filters.findings));
+      if (topbar.sinceBtn) {
+        topbar.sinceBtn.setAttribute('aria-pressed', String(filters.changed));
+        topbar.allBtn.setAttribute('aria-pressed', String(!filters.changed));
+      }
+      document.body.classList.toggle('since', !!filters.changed);
+      Object.keys(fileViews).forEach(function (path) { fileViews[path].section.hidden = !fileMatches(fileViews[path]); });
+      Object.keys(groupViews).forEach(function (id) {
+        var view = groupViews[id];
+        var visible = view.group.files.some(function (path) { return fileViews[path] && !fileViews[path].section.hidden; });
+        view.section.hidden = !visible;
+        view.link.hidden = !visible;
+      });
+      updateNextLinks();
+    });
+  }
+
+  function updateProgress() {
+    var total = data.files.length;
+    var done = data.files.filter(isViewed).length;
+    topbar.progress.textContent = '已看 ' + done + ' / ' + total + ' 檔';
+    topbar.bar.style.width = (total ? (done / total) * 100 : 0) + '%';
+    Object.keys(groupViews).forEach(function (id) {
+      var view = groupViews[id];
+      var files = view.group.files.filter(function (path) { return filesByPath[path]; });
+      var seen = files.filter(function (path) { return isViewed(filesByPath[path]); }).length;
+      var complete = files.length > 0 && seen === files.length;
+      view.count.textContent = files.length + ' 檔' + (complete ? '，都看過了' : seen ? '，已看 ' + seen : '');
+      view.meta.textContent = '';
+      view.meta.append(seen + ' / ' + files.length + ' 檔已看');
+      severityPills(view.findings).forEach(function (pill) { view.meta.append(pill); });
+      view.link.classList.toggle('done', complete);
+      view.navNum.textContent = complete ? '✓' : String(view.index + 1);
+    });
+  }
+
+  function visibleSections(selector) {
+    return [].slice.call(document.querySelectorAll(selector)).filter(function (node) { return node.offsetParent !== null; });
+  }
+  function jump(selector, direction) {
+    var nodes = visibleSections(selector);
+    var offset = topOffset() + 16;
+    var target = null;
+    if (direction > 0) {
+      target = nodes.filter(function (node) { return node.getBoundingClientRect().top > offset + 4; })[0];
+    } else {
+      var before = nodes.filter(function (node) { return node.getBoundingClientRect().top < offset - 4; });
+      target = before[before.length - 1];
+    }
+    if (target) scrollToNode(target);
+  }
+
+  var main = document.getElementById('main');
+  var topbar = buildTopbar();
+  main.append(buildOverview());
+  data.groups.forEach(function (group, index) { main.append(buildGroup(group, index)); });
+  main.append(h('p', { class: 'help' }, [
+    '快捷鍵：', h('kbd', { text: 'j' }), ' / ', h('kbd', { text: 'k' }), ' 下一個、上一個檔案　',
+    h('kbd', { text: 'v' }), ' 把正在看的檔案標成已看　',
+    h('kbd', { text: 'n' }), ' / ', h('kbd', { text: 'p' }), ' 下一則、上一則意見。',
+    live ? '點 diff 裡的行號可以在那一行留言；還沒送出的留言與「已看」存在這台電腦上，關掉頁面也還在。右上角的「圖例」說明每個標記的意思。'
+      : '「已看」只存在這個瀏覽器裡。右上角的「圖例」說明每個標記的意思。'
+  ]));
+  buildSidebar();
+  applyFilters();
+  updateProgress();
+  refreshLiveChrome();
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    var tag = (ev.target && ev.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (ev.key === 'j') jump('section.file', 1);
+    else if (ev.key === 'k') jump('section.file', -1);
+    else if (ev.key === 'n') jump('.finding', 1);
+    else if (ev.key === 'p') jump('.finding', -1);
+    else if (ev.key === 'v') { var view = currentView(); if (view) view.toggleViewed(); }
+  });
+
+  if ('IntersectionObserver' in window) {
+    var onScreen = {};
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { onScreen[entry.target.id.replace(/^group-/, '')] = entry.isIntersecting; });
+      var current = data.groups.filter(function (group) { return onScreen[group.id]; })[0];
+      data.groups.forEach(function (group) {
+        groupViews[group.id].link.classList.toggle('active', !!current && current.id === group.id);
+      });
+    }, { rootMargin: '-80px 0px -60% 0px' });
+    Object.keys(groupViews).forEach(function (id) { observer.observe(groupViews[id].section); });
+  }
+})();
+</script>
+</body>
+</html>

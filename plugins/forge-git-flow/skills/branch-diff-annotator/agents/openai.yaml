@@ -1,0 +1,4 @@
+interface:
+  display_name: "Branch Diff Annotator"
+  short_description: "Add convention-compliant docstrings from the branch diff"
+  default_prompt: "Use $branch-diff-annotator to add docstrings to every function and class added or changed on this branch."

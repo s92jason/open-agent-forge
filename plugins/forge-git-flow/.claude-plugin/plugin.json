@@ -1,0 +1,11 @@
+{
+  "name": "forge-git-flow",
+  "version": "1.4.2",
+  "description": "Git 工作流技能套件：branch diff review、PR review 頁面、unit test 補齊、docstring 標註、PR 描述、智慧 commit 與批次建立 branch。預設採保守安全策略（高副作用操作需明確確認）。",
+  "author": { "name": "Jason Chen" },
+  "keywords": [
+    "git", "branch", "diff", "code review", "程式碼審查",
+    "commit", "pull request", "PR", "PR review", "Gitea", "unit test", "單元測試",
+    "docstring", "註解", "工作流"
+  ]
+}

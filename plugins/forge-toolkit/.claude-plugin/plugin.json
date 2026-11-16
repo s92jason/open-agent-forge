@@ -1,0 +1,11 @@
+{
+  "name": "forge-toolkit",
+  "version": "1.0.0",
+  "description": "泛用工具包：跨領域、對任何技術棧與任務類型都適用的工作方法類技能。首個技能 task-brief 把一句需求轉成新 session 的交接包（model / effort / permission mode 建議、kickoff prompt、啟動指令與 deep link）。",
+  "author": { "name": "Jason Chen" },
+  "keywords": [
+    "toolkit", "工具包", "task brief", "交接", "kickoff prompt",
+    "新 session", "模型選擇", "model", "effort", "permission mode",
+    "啟動指令", "deep link"
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Branch Diff Unit Test"
+  short_description: "Add unit tests for business logic changed on this branch"
+  default_prompt: "Use $branch-diff-unit-test to add unit tests for the business logic changed on this branch."

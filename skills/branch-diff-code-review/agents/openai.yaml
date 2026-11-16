@@ -1,0 +1,4 @@
+interface:
+  display_name: "Branch Diff Code Review"
+  short_description: "Review the branch diff with auto-chunking and a 100-point score"
+  default_prompt: "Use $branch-diff-code-review to review this branch from its base commit to HEAD."
