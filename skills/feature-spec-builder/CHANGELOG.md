@@ -4,6 +4,23 @@ All notable changes to this skill are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-11-16
+
+Covers the upstream move of feature-spec-builder into the `forge-spec` plugin (v1.0.0).
+The skill behaves the same as 1.1.1.
+
+### Added
+- `HOW-IT-WORKS.md`: how the skill works and why it is designed this way (zh-TW).
+- `introduction.html`: an introduction page for the skill (zh-TW).
+- `agents/openai.yaml`: display name, short description and default prompt for Codex.
+- The skill is now also published inside the `forge-spec` plugin
+  (`plugins/forge-spec/skills/feature-spec-builder/`), so it can be installed through
+  the plugin marketplace. This folder is still available for copying on its own.
+
+### Changed
+- `SKILL.md` frontmatter: `keywords` moved under `metadata`, so the frontmatter uses
+  only the fields every supported tool accepts.
+
 ## [1.1.1] - 2026-06-10
 
 Covers the upstream `forge-skills` feature-spec-builder update from v1.19.1.
