@@ -625,7 +625,10 @@ def make_server(
                     if not hmac.compare_digest(given, key):
                         self._text(403, "這個連結已經失效，請回到對話重新開啟 review 頁面。")
                         return
-                    cookie = f"{self._cookie_name()}={key}; HttpOnly; SameSite=Strict; Path=/"
+                    # 用 Lax 不用 Strict：Safari 把休眠的分頁叫回來時是「從歷史紀錄載入」，這種載入不送 Strict 的 cookie
+                    # （WebKit bug 232666），頁面就會被當成沒登入。Lax 只跟著頂層的 GET 導覽送出；會改東西的請求都是 POST，
+                    # 另外有 Origin 與 X-Forge-Request 兩道檢查，所以跨站偽造的請求仍然進不來。
+                    cookie = f"{self._cookie_name()}={key}; HttpOnly; SameSite=Lax; Path=/"
                     self._send(302, b"", "text/plain; charset=utf-8", {"Location": "/", "Set-Cookie": cookie})
                     return
                 if not self._authed():
@@ -636,7 +639,11 @@ def make_server(
                 except Exception as exc:  # noqa: BLE001 - 把原因顯示在頁面上
                     self._text(500, f"頁面產生失敗：{exc}")
                 return
-            if parsed.path == "/api/live" and self._authed():
+            if parsed.path == "/api/live":
+                # Lax 的 cookie 會跟著別的網站發起的頂層導覽送來，所以讀資料的 GET 也要有頁面才會加的自訂標頭
+                if not (self._authed() and self.headers.get("X-Forge-Request") == "1"):
+                    self._json(403, {"ok": False, "message": "拒絕存取。"})
+                    return
                 self._json(200, {"ok": True, "live": service.live()})
                 return
             self._text(404, "找不到。")
